@@ -1,0 +1,1 @@
+This is the *home* of my home-lab related configuration files, notes, and short project retrospectives.
