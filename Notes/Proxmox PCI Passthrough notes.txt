@@ -1,0 +1,14 @@
+To pass-through a PCI device (non-gpu) (GRUB)
+1. Find slot id number using > lshw grep NAME -A 10 or > lspci -vmmnnk | grep NAME -A 10
+2. Use slot id to find sys path using >  find /sys/devices/pci* | grep SLOTID
+3. Take sys device path and then add it to a shell script called bind_vfio.sh
+	- Script should be in the format
+	#SOF
+	echo "vfio-pci" SYSDEVICEPATH/driver_override
+	// However many pci devices that need to be passed through
+	modprobe -i vfio-pci
+	#EOF
+	- located at /etc/initramfs-tools/scripts/init-top/bind_vfio.sh
+4. Ensure that you have blacklisted the device if neccesary in kernel cmd line
+	and have set up iommu correctly.
+	- Located at /etc/default/grub

@@ -1,0 +1,10 @@
+Mount member zfs pool to proxmox host
+ex. disk 1
+pve-vm--100--disk--1 2.4T lvm
+
+kpartx -av pve-vm-100-1
+> ...p1
+> ...p2
+
+p2 should be a zfs_member file system
+use zpool import -f -d /dev/mapper/pve-vm--100--disk--1p2 POOLNAME
