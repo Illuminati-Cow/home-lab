@@ -1,0 +1,134 @@
+http:
+ #region routers 
+  routers:
+    proxmox:
+      entryPoints:
+        - "https"
+      rule: "Host(`proxmox.local.thepasture.uk`)"
+      middlewares:
+        - default-headers
+        - https-redirectscheme
+      tls: {}
+      service: proxmox
+    pihole:
+      entryPoints: 
+        - "https"
+      rule: "Host(`pihole.local.thepasture.uk`)"
+      middlewares:
+        - default-headers
+        - https-redirectscheme
+      tls: {}
+      service: pihole
+    qbittorrent:
+      entryPoints: 
+        - "https"
+      rule: "Host(`qbittorrent.local.thepasture.uk`)"
+      middlewares:
+        - default-headers
+        - https-redirectscheme
+      tls: {}
+      service: qbittorrent
+    jellyfin:
+      entryPoints: 
+        - "https"
+      rule: "Host(`jellyfin.local.thepasture.uk`)"
+      middlewares:
+        - default-headers
+        - https-redirectscheme
+      tls: {}
+      service: jellyfin
+    truenas:
+      entryPoints: 
+        - "https"
+      rule: "Host(`truenas.local.thepasture.uk`)"
+      middlewares:
+        - default-headers
+        - https-redirectscheme
+      tls: {}
+      service: truenas
+    sabnzbd:
+      entryPoints: 
+        - "https"
+      rule: "Host(`sabnzbd.local.thepasture.uk`)"
+      middlewares:
+        - default-headers
+        - https-redirectscheme
+      tls: {}
+      service: sabnzbd
+    openwrt:
+      entryPoints:
+        - "https"
+      rule: "Host(`openwrt.local.thepasture.uk`)"
+      middlewares:
+        - default-headers
+        - https-redirectscheme
+      tls: {}
+      service: openwrt
+  
+#endregion
+#region services
+  services:
+    proxmox:
+      loadBalancer:
+        servers:
+          - url: "https://192.168.0.200:8006"
+        passHostHeader: true
+    pihole:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.205/admin"
+        passHostHeader: true
+    qbittorrent:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.204:8090"
+        passHostHeader: true 
+    jellyfin:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.202:8096"
+        passHostHeader: true 
+    truenas:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.201"
+        passHostHeader: true 
+    sabnzbd:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.207:7777"
+        passHostHeader: true 
+    openwrt:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.222"
+        passHostHeader: true
+#endregion
+  middlewares:
+    https-redirectscheme:
+      redirectScheme:
+        scheme: https
+        permanent: true
+    default-headers:
+      headers:
+        frameDeny: true
+        browserXssFilter: true
+        contentTypeNosniff: true
+        forceSTSHeader: true
+        stsIncludeSubdomains: true
+        stsPreload: true
+        stsSeconds: 15552000
+        customFrameOptionsValue: SAMEORIGIN
+        customRequestHeaders:
+          X-Forwarded-Proto: https
+
+    default-whitelist:
+      ipAllowList:
+        sourceRange:
+        - "192.168.0.0/24"
+        - "172.16.0.0/12"
+    secured:
+      chain:
+        middlewares:
+        - default-whitelist
+        - default-headers
