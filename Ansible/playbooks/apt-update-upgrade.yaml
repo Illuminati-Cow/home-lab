@@ -1,0 +1,9 @@
+---
+- name: Update and upgrade apt packages
+  hosts: main
+  become: true
+  tasks:
+    - name: Update and Upgrade all apt packages
+      apt:
+        upgrade: yes
+        update_cache: yes
