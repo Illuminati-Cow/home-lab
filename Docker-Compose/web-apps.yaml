@@ -18,29 +18,6 @@ services:
       - traefik.http.routers.kuma.entrypoints=https
       - traefik.http.routers.kuma.tls=true
       - traefik.http.services.kuma.loadbalancer.server.port=3001
-  heimdall:
-    # To build from source, replace 'image: lissy93/dashy' with 'build: .'
-    # build: .
-    image: lscr.io/linuxserver/heimdall:latest
-    container_name: heimdall
-    ports:
-      - 8888:80
-    #   - 443:443
-    networks:
-      - proxy
-    restart: unless-stopped
-    volumes:
-      - /opt/stacks/web-apps/heimdall/config:/config
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=America/Los_Angeles
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.heimdall.rule=Host(`heimdall.local.thepasture.uk`)
-      - traefik.http.routers.heimdall.entrypoints=https
-      - traefik.http.routers.heimdall.tls=true
-      - traefik.http.services.heimdall.loadbalancer.server.port=80
   audiobookshelf:
     image: ghcr.io/advplyr/audiobookshelf:latest
     ports:
@@ -49,8 +26,8 @@ services:
     networks:
       - proxy
     volumes:
-      - /mnt/media/books:/books
-      - /mnt/media/audiobooks:/audiobooks
+      - /tank/media/books:/books
+      - /tank/media/audiobooks:/audiobooks
       - /opt/stacks/web-apps/audiobookshelf/config:/config
       - /opt/stacks/web-apps/audiobookshelf/metadata:/metadata
     environment:

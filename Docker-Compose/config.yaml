@@ -1,5 +1,5 @@
 http:
- #region routers 
+ #region routers
   routers:
     proxmox:
       entryPoints:
@@ -11,7 +11,7 @@ http:
       tls: {}
       service: proxmox
     pihole:
-      entryPoints: 
+      entryPoints:
         - "https"
       rule: "Host(`pihole.local.thepasture.uk`)"
       middlewares:
@@ -20,16 +20,16 @@ http:
       tls: {}
       service: pihole
     qbittorrent:
-      entryPoints: 
+      entryPoints:
         - "https"
       rule: "Host(`qbittorrent.local.thepasture.uk`)"
       middlewares:
-        - default-headers
-        - https-redirectscheme
+         - default-headers
+         - https-redirectscheme
       tls: {}
       service: qbittorrent
     jellyfin:
-      entryPoints: 
+      entryPoints:
         - "https"
       rule: "Host(`jellyfin.local.thepasture.uk`)"
       middlewares:
@@ -37,17 +37,8 @@ http:
         - https-redirectscheme
       tls: {}
       service: jellyfin
-    truenas:
-      entryPoints: 
-        - "https"
-      rule: "Host(`truenas.local.thepasture.uk`)"
-      middlewares:
-        - default-headers
-        - https-redirectscheme
-      tls: {}
-      service: truenas
     sabnzbd:
-      entryPoints: 
+      entryPoints:
         - "https"
       rule: "Host(`sabnzbd.local.thepasture.uk`)"
       middlewares:
@@ -56,52 +47,47 @@ http:
       tls: {}
       service: sabnzbd
     openwrt:
-      entryPoints:
-        - "https"
-      rule: "Host(`openwrt.local.thepasture.uk`)"
-      middlewares:
-        - default-headers
-        - https-redirectscheme
-      tls: {}
-      service: openwrt
-  
+       entryPoints:
+         - "https"
+       rule: "Host(`openwrt.local.thepasture.uk`)"
+       middlewares:
+         - default-headers
+         - https-redirectscheme
+       tls: {}
+       service: openwrt
+
 #endregion
 #region services
   services:
     proxmox:
       loadBalancer:
         servers:
-          - url: "https://192.168.0.200:8006"
+          - url: "https://10.0.0.200:8006"
         passHostHeader: true
     pihole:
       loadBalancer:
         servers:
-          - url: "http://192.168.0.205/admin"
+          - url: "http://10.0.0.101/admin"
         passHostHeader: true
     qbittorrent:
       loadBalancer:
         servers:
-          - url: "http://192.168.0.204:8090"
-        passHostHeader: true 
+           - url: "http://10.0.0.104:8090"
+        passHostHeader: true
     jellyfin:
       loadBalancer:
         servers:
-          - url: "http://192.168.0.202:8096"
-        passHostHeader: true 
-    truenas:
-      loadBalancer:
-        servers:
-          - url: "http://192.168.0.201"
-        passHostHeader: true 
+          - url: "http://10.0.0.110:8096"
+        passHostHeader: true
     sabnzbd:
       loadBalancer:
         servers:
-          - url: "http://192.168.0.207:7777"
-        passHostHeader: true 
+          - url: "http://10.0.0.106:7777"
+        passHostHeader: true
     openwrt:
       loadBalancer:
         servers:
-          - url: "http://192.168.0.222"
+          - url: "http://10.0.0.222"
         passHostHeader: true
 #endregion
   middlewares:
@@ -125,7 +111,7 @@ http:
     default-whitelist:
       ipAllowList:
         sourceRange:
-        - "192.168.0.0/24"
+        - "10.0.0.0/24"
         - "172.16.0.0/12"
     secured:
       chain:

@@ -20,9 +20,10 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=America/Los_Angeles
+      - DOCKER_MODS=linuxserver/mods:radarr-striptracks
     volumes:
       - /opt/stacks/arr/radarr/config:/config
-      - /mnt/media:/mnt/media
+      - /tank/media:/tank/media
     ports:
       - 7878:7878
     restart: unless-stopped
@@ -41,9 +42,10 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=America/Los_Angeles
+      - DOCKER_MODS=linuxserver/mods:radarr-striptracks
     volumes:
       - /opt/stacks/arr/sonarr/config:/config
-      - /mnt/media:/mnt/media
+      - /tank/media:/tank/media
     ports:
       - 8989:8989
     restart: unless-stopped
@@ -62,9 +64,10 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=America/Los_Angeles
+      - DOCKER_MODS=linuxserver/mods:radarr-striptracks
     volumes:
       - /opt/stacks/arr/sonarra/config:/config
-      - /mnt/media:/mnt/media
+      - /tank/media:/tank/media
     ports:
       - 8999:8999
     restart: unless-stopped
@@ -124,9 +127,9 @@ services:
       - TZ=America/Los_Angeles
     volumes:
       - /opt/stacks/arr/readarr/config:/config
-      - /mnt/media/books:/mnt/media/books
-      - /mnt/media/audiobooks:/mnt/media/audiobooks
-      - /mnt/media/downloads:/mnt/media/downloads
+      - /tank/media/books:/tank/media/books
+      - /tank/media/audiobooks:/tank/media/audiobooks
+      - /tank/media/downloads:/tank/media/downloads
     ports:
       - 8787:8787
     restart: unless-stopped
@@ -147,8 +150,8 @@ services:
       - TZ=America/Los_Angeles
     volumes:
       - /opt/stacks/arr/lidarr/config:/config
-      - /mnt/media/music:/mnt/media/music #optional
-      - /mnt/media/downloads:/mnt/media/downloads #optional
+      - /tank/media/music:/tank/media/music #optional
+      - /tank/media/downloads:/tank/media/downloads #optional
     ports:
       - 8686:8686
     restart: unless-stopped
@@ -169,8 +172,8 @@ services:
       - TZ=America/Los_Angeles
     volumes:
       - /opt/stacks/arr/bazarr/config:/config
-      - /mnt/media/movies:/mnt/media/movies #optional
-      - /mnt/media/shows:/mnt/media/shows #optional
+      - /tank/media/movies:/tank/media/movies #optional
+      - /tank/media/shows:/tank/media/shows #optional
     ports:
       - 6767:6767
     restart: unless-stopped
