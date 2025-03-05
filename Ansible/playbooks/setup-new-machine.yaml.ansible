@@ -1,0 +1,107 @@
+---
+- name: Setup SSH for LXCs
+  hosts: main
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Get list of running LXC containers
+      ansible.builtin.command: "pct list"
+      register: pct_list_output
+      changed_when: false
+
+    - name: Filter running LXC containers
+      set_fact:
+        lxc_list: "{{ pct_list_output.stdout_lines | select('search', 'running') | map('regex_replace', '^\\s*(\\S+).*$', '\\1') | list }}"
+      changed_when: false
+
+    - name: Install OpenSSH server if not installed
+      ansible.builtin.command:
+        cmd: "pct exec {{ item }} -- sh -c 'which sshd || (apt update && apt install -y openssh-server)'"
+      register: ssh_install_results
+      changed_when: "'installing' in ssh_install_results.stdout or 'upgraded' in ssh_install_results.stdout"
+      loop: "{{ lxc_list }}"
+      loop_control:
+        label: "LXC {{ item }}"
+
+    - name: Enable PubKeyAuthentication
+      ansible.builtin.command:
+        cmd: "pct exec {{ item }} -- sed -i 's/^#PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config"
+      register: pubkey_install_result
+      when: ssh_install_results.results | selectattr('item', 'equalto', item) | map(attribute='changed') | first
+      changed_when: "pubkey_install_result.rc != 0"
+      loop: "{{ lxc_list }}"
+      loop_control:
+        label: "LXC {{ item }}"
+
+    - name: Restart SSH service
+      ansible.builtin.command:
+        cmd: "pct exec {{ item }} -- systemctl restart ssh"
+      when: ssh_install_results.results | selectattr('item', 'equalto', item) | map(attribute='changed') | first
+      changed_when: true
+      loop: "{{ lxc_list }}"
+      loop_control:
+        label: "LXC {{ item }}"
+
+    - name: Get Ansible public key from prxomox host
+      shell: cat /root/.ssh/ansible.pub
+      register: ssh_key
+      changed_when: false
+
+    - name: Check if the key is already present
+      ansible.builtin.command:
+        cmd: "pct exec {{ ctid }} -- grep -qF '{{ ssh_key.stdout }}' /root/.ssh/authorized_keys"
+      register: key_check
+      failed_when: key_check.rc not in [0,1]
+      changed_when: false
+      loop_control:
+        loop_var: ctid
+      loop: "{{ lxc_list }}"
+
+    - name: Append key to authorized_keys
+      ansible.builtin.command:
+        cmd: "pct exec {{ item.ctid }} -- sh -c 'echo ''{{ ssh_key.stdout }}'' >> /root/.ssh/authorized_keys'"
+      when: item.rc == 1
+      register: append_result
+      failed_when: append_result.rc != 0
+      loop_control:
+        label: "LXC {{ item.ctid }}"
+      loop: "{{ key_check.results }}"
+    
+    - name: Remove sudoer password requirements into temp file
+      ansible.builtin.command:
+        cmd: |
+          pct exec {{ ctid }} -- sh -c "
+          sed -r 's/^%sudo\\s+ALL=\\(ALL:ALL\\)\\s+ALL/%sudo   ALL=(ALL:ALL) NOPASSWD: ALL/' /etc/sudoers | 
+          tee /etc/sudoers.temp > /dev/null"
+      register: sed_results
+      failed_when: sed_results.rc != 0
+      loop_control:
+        loop_var: ctid
+        label: "LXC {{ ctid }}" 
+      loop: "{{ lxc_list }}"
+
+    - name: Check if new sudoer file is differnt
+      ansible.builtin.command:
+        cmd: "pct exec {{ ctid }} -- cmp -s /etc/sudoers.temp /etc/sudoers"
+      register: cmp_results
+      failed_when: false
+      changed_when: false
+      loop: "{{ lxc_list }}"
+      loop_control:
+        loop_var: ctid
+        label: "LXC {{ ctid }}" 
+
+    - name: Remove sudoer password requirements
+      ansible.builtin.command:
+        cmd: |
+          pct exec {{ ctid }} -- sh -c "
+          visudo -c -f /etc/sudoers.temp && 
+          install -m 440 /etc/sudoers.temp /etc/sudoers"
+      when: cmp_results.results[loop.index0].rc != 0
+      register: sed_results
+      failed_when: sed_results.rc != 0
+      loop: "{{ lxc_list }}"
+      loop_control:
+        loop_var: ctid
+        label: "LXC {{ ctid }}" 
+
