@@ -1,7 +1,25 @@
 ---
-- name: Update docker configs
+- name: Pull latest configs
   hosts: docker
   tasks:
-  - name: Pull new changes
-    debug:
-      msg: "Hello"
+    - name: Pull home-lab repo
+      git:
+        repo: 'https://github.com/Illuminati-Cow/home-lab.git'
+        dest: '/opt/config-repo'
+        version: main
+        update: yes
+
+- name: Update Docker container configs
+  hosts: docker
+  tasks:
+    - name: Apply config updates
+      include_tasks: update-config.yaml.ansible
+      loop: '{{ docker_machines }}'
+      loop_control:
+        loop_var: machine
+  vars:
+    docker_machines:
+      - name: 'traefik'
+        config_path: '/opt/stacks/network/traefik/data/traefik.yaml'
+        config_name: 'traefik.yaml'
+        container_name: 'traefik'

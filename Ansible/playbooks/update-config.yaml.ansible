@@ -1,0 +1,21 @@
+- name: Compare config files
+  ansible.builtin.command:
+    cmd: "diff {{ machine.config_path }} /opt/config-repo/Configs/{{ machine.name }}/{{ machine.config_name }}"
+  register: config_diff
+  failed_when: false
+  changed_when: config_diff.rc != 0
+
+- name: Update config if changed
+  ansible.builtin.copy:
+    src: "/opt/config-repo/Configs/{{ machine.name }}/{{ machine.config_name }}"
+    dest: "{{ machine.config_path }}"
+    remote_src: yes
+  when: config_diff.rc != 0
+  notify: Restart container
+
+- name: Restart container
+  community.docker.docker_container:
+    name: "{{ machine.container_name }}"
+    state: started
+    restart: true
+  when: config_diff.rc != 0
