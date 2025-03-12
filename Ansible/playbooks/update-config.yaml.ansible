@@ -11,7 +11,6 @@
     dest: "{{ machine.config_path }}"
     remote_src: yes
   when: config_diff.rc != 0
-  notify: Restart container
 
 - name: Restart container
   community.docker.docker_container:

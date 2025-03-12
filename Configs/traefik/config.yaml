@@ -67,7 +67,7 @@ http:
     pihole:
       loadBalancer:
         servers:
-          - url: "http://10.0.0.101/admin"
+          - url: "http://10.0.0.101"
         passHostHeader: true
     qbittorrent:
       loadBalancer:
