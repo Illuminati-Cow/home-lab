@@ -97,12 +97,12 @@
           pct exec {{ ctid }} -- sh -c "
           visudo -c -f /etc/sudoers.temp && 
           install -m 440 /etc/sudoers.temp /etc/sudoers"
-      when: cmp_results.results[loop.index0].rc != 0
+      when: cmp_results.results[index].rc != 0
       register: sed_results
       failed_when: sed_results.rc != 0
       loop: "{{ lxc_list }}"
       loop_control:
         extended: true
         loop_var: ctid
+        index_var: index
         label: "LXC {{ ctid }}" 
-
