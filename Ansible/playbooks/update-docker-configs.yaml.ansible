@@ -1,0 +1,7 @@
+---
+- name: Update docker configs
+  hosts: docker
+  tasks:
+  - name: Pull new changes
+    debug:
+      msg: "Hello"

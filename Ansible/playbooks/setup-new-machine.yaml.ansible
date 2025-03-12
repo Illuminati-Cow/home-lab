@@ -102,6 +102,7 @@
       failed_when: sed_results.rc != 0
       loop: "{{ lxc_list }}"
       loop_control:
+        extended: true
         loop_var: ctid
         label: "LXC {{ ctid }}" 
 
