@@ -23,3 +23,15 @@
         config_path: '/opt/stacks/network/traefik/data/config.yaml'
         config_name: 'config.yaml'
         container_name: 'traefik'
+
+- name: Update Docker compose files
+  hosts: docker
+  tasks:
+  - name: Apply compose updates
+    include_tasks: update-compose.yaml.ansible
+    loop: '{{ docker_stacks }}'
+    loop_control:
+      loop_var: stack
+  vars:
+    docker_stacks:
+      - name: 'network'

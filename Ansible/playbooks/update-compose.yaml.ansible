@@ -1,0 +1,25 @@
+- name: Compare compose files
+  ansible.builtin.command:
+    cmd: "diff /opt/stacks/{{ stack.name }}/compose.yaml /opt/config-repo/Docker-Compose/{{ stack.name }}.yaml"
+  register: config_diff
+  failed_when: false
+  changed_when: config_diff.rc != 0
+
+- name: Update compose file if changed
+  ansible.builtin.copy:
+    src: "/opt/config-repo/Docker-Compose/{{ stack.name }}.yaml"
+    dest: "/opt/stacks/{{ stack.name }}/compose.yaml"
+    remote_src: yes
+  when: config_diff.rc != 0
+
+- name: Re-up stack with new compose file
+  community.docker.docker_compose_v2:
+    project_src: '/opt/stacks/{{ stack.name }}'
+  register: output
+  when: config_diff.rc != 0
+
+- name: Show results
+  ansible.builtin.debug:
+    var: output
+  changed_when: false
+  when: output is defined
