@@ -31,7 +31,7 @@ http:
     jellyfin:
       entryPoints:
         - "https"
-      rule: "Host(`jellyfin.local.thepasture.uk`)"
+      rule: "Host(`jellyfin.local.thepasture.uk`) || Host(`jellyfin.thepasture.uk`)"
       middlewares:
         - default-headers
         - https-redirectscheme
@@ -118,3 +118,4 @@ http:
         middlewares:
         - default-whitelist
         - default-headers
+        

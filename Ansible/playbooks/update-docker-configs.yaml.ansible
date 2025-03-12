@@ -20,6 +20,6 @@
   vars:
     docker_machines:
       - name: 'traefik'
-        config_path: '/opt/stacks/network/traefik/data/traefik.yaml'
-        config_name: 'traefik.yaml'
+        config_path: '/opt/stacks/network/traefik/data/config.yaml'
+        config_name: 'config.yaml'
         container_name: 'traefik'
