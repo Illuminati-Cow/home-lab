@@ -1,0 +1,30 @@
+version: "3.8"
+services:
+  semaphore:
+    container_name: semaphore
+    user: 0:0
+    ports:
+      - 3000:3000
+    image: semaphoreui/semaphore:v2.12.14
+    networks:
+      - proxy
+    volumes:
+      - /home/serveradmin/docker_volumes/semaphore/data:/var/lib/semaphore
+      - /home/serveradmin/docker_volumes/semaphore/config:/etc/semaphore
+      - /home/serveradmin/docker_volumes/semaphore/tmp:/tmp/semaphore
+    restart: unless-stopped
+    environment:
+      SEMAPHORE_DB_DIALECT: bolt
+      SEMAPHORE_ADMIN: ${DB_USER}
+      SEMAPHORE_ADMIN_PASSWORD: ${DB_ADMIN_PASSWORD}
+      SEMAPHORE_ADMIN_NAME: ${DB_ADMIN_NAME}
+      SEMAPHORE_ADMIN_EMAIL: ${DB_ADMIN_EMAIL}
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.semaphore.rule=Host(`semaphore.local.thepasture.uk`)
+      - traefik.http.routers.semaphore.entrypoints=https
+      - traefik.http.routers.semaphore.tls=true
+      - traefik.http.services.semaphore.loadbalancer.server.port=3000
+networks:
+  proxy:
+    external: true
