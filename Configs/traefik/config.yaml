@@ -55,7 +55,15 @@ http:
          - https-redirectscheme
        tls: {}
        service: openwrt
-
+    syncthing:
+      entryPoints:
+        - "https"
+      rule: "Host(`syncthing.local.thepasture.uk`)"
+      middlewares:
+        - default-headers
+        - https-redirectscheme
+      tls: {}
+      service: syncthing
 #endregion
 #region services
   services:
@@ -88,6 +96,11 @@ http:
       loadBalancer:
         servers:
           - url: "http://10.0.0.222"
+        passHostHeader: true
+    syncthing:
+      loadBalancer:
+        servers:
+          - url: "http://10.0.0.109:8384"
         passHostHeader: true
 #endregion
   middlewares:
