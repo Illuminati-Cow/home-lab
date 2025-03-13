@@ -35,3 +35,6 @@
   vars:
     docker_stacks:
       - name: 'network'
+      - name: 'immich'
+      - name: 'arr'
+      - name: 'web-apps'
