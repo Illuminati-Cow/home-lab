@@ -20,6 +20,12 @@ services:
     restart: always
     healthcheck:
       disable: false
+    labels:
+        - traefik.enable=true
+        - traefik.http.routers.immich.rule=Host(`immich.local.thepasture.uk`) || Host(`immich.thepasture.uk`)
+        - traefik.http.routers.immich.entrypoints=https
+        - traefik.http.routers.immich.tls=true
+        - traefik.http.services.immich.loadbalancer.server.port=2283
   immich-machine-learning:
     container_name: immich_machine_learning
     # For hardware acceleration, add one of -[armnn, cuda, openvino] to the image tag.
@@ -68,4 +74,6 @@ services:
     restart: always
 volumes:
   model-cache: null
-networks: {}
+networks:
+  proxy:
+    external: true

@@ -55,7 +55,15 @@ http:
          - https-redirectscheme
        tls: {}
        service: openwrt
-
+    duplicati:
+      entryPoints:
+        - "https"
+      rule: "Host(`duplicati.local.thepasture.uk`)"
+      middlewares:
+        - default-headers
+        - https-redirectscheme
+      tls: {}
+      service: duplicati
 #endregion
 #region services
   services:
@@ -88,6 +96,11 @@ http:
       loadBalancer:
         servers:
           - url: "http://10.0.0.222"
+        passHostHeader: true
+    duplicati:
+      loadBalancer:
+        servers:
+          - url: "http://10.0.0.108:8200"
         passHostHeader: true
 #endregion
   middlewares:
