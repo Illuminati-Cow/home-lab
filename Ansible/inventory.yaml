@@ -17,35 +17,35 @@ lxcs:
     ansible_ssh_user: root
     ansible_ssh_private_key_file: /root/.ssh/ansible
 
-docker:
-  hosts:
-    audiobookshelf:
-      ansible_host: audiobookshelf.local.thepasture.uk
-    actual-budget:
-      ansible_host: budget.local.thepasture.uk
-    traefik:
-      ansible_host: traefik-dashboard.local.thepasture.uk
-    uptime-kuma:
-      ansible_host: kuma.local.thepasture.uk
-    bazarr:
-      ansible_host: bazarr.local.thepasture.uk
-    lidarr:
-      ansible_host: lidarr.local.thepasture.uk
-    readarr:
-      ansible_host: readarr.local.thepasture.uk
-    prowlarr:
-      ansible_host: prowlarr.local.thepasture.uk
-    jellyseer:
-      ansible_host: jellyseer.local.thepasture.uk
-    sonarra:
-      ansible_host: sonarr.local.thepasture.uk
-    radarr:
-      ansible_host: radarr.local.thepasture.uk
-    recyclarr:
-      ansible_host: recyclarr.local.thepasture.uk
-  vars:
-    ansible_ssh_user: root
-    ansible_ssh_private_key_file: /root/.ssh/ansible
+# docker:
+#   hosts:
+#     audiobookshelf:
+#       ansible_host: audiobookshelf.local.thepasture.uk
+#     actual-budget:
+#       ansible_host: budget.local.thepasture.uk
+#     traefik:
+#       ansible_host: traefik-dashboard.local.thepasture.uk
+#     uptime-kuma:
+#       ansible_host: kuma.local.thepasture.uk
+#     bazarr:
+#       ansible_host: bazarr.local.thepasture.uk
+#     lidarr:
+#       ansible_host: lidarr.local.thepasture.uk
+#     readarr:
+#       ansible_host: readarr.local.thepasture.uk
+#     prowlarr:
+#       ansible_host: prowlarr.local.thepasture.uk
+#     jellyseer:
+#       ansible_host: jellyseer.local.thepasture.uk
+#     sonarra:
+#       ansible_host: sonarr.local.thepasture.uk
+#     radarr:
+#       ansible_host: radarr.local.thepasture.uk
+#     recyclarr:
+#       ansible_host: recyclarr.local.thepasture.uk
+#   vars:
+#     ansible_ssh_user: root
+#     ansible_ssh_private_key_file: /root/.ssh/ansible
 
 main:
   hosts:
