@@ -17,6 +17,7 @@ http:
       middlewares:
         - default-headers
         - https-redirectscheme
+        - pihole-root-redirect
       tls: {}
       service: pihole
     qbittorrent:
@@ -134,7 +135,11 @@ http:
         customFrameOptionsValue: SAMEORIGIN
         customRequestHeaders:
           X-Forwarded-Proto: https
-
+    pihole-root-redirect:
+      redirectRegex:
+        regex: "^https?://([^/]+)/?$"
+        replacement: "https://$1/admin"
+        permanent: true
     default-whitelist:
       ipAllowList:
         sourceRange:
