@@ -1,0 +1,55 @@
+services:
+  db_recipes:
+    restart: always
+    image: postgres:16-alpine
+    volumes:
+      - ./postgresql:/var/lib/postgresql/data
+    env_file:
+      - ./.env
+    networks:
+      - default
+
+  web_recipes:
+    restart: always
+    image: vabene1111/recipes
+    env_file:
+      - ./.env
+    volumes:
+      - staticfiles:/opt/recipes/staticfiles
+      # Do not make this a bind mount, see https://docs.tandoor.dev/install/docker/#volumes-vs-bind-mounts
+      - nginx_config:/opt/recipes/nginx/conf.d
+      - ./mediafiles:/opt/recipes/mediafiles
+    depends_on:
+      - db_recipes
+    networks:
+      - default
+
+  nginx_recipes:
+    image: nginx:mainline-alpine
+    restart: always
+    env_file:
+      - ./.env
+    volumes:
+      # Do not make this a bind mount, see https://docs.tandoor.dev/install/docker/#volumes-vs-bind-mounts
+      - nginx_config:/etc/nginx/conf.d:ro
+      - staticfiles:/static:ro
+      - ./mediafiles:/media:ro
+    labels: # traefik example labels
+      - "traefik.enable=true"
+      - "traefik.http.routers.recipes.rule=Host(`recipes.local.thepasture.uk`, `recipes.thepasture.uk`)"
+      - "traefik.http.routers.recipes.entrypoints=https"
+      - traefik.http.routers.recipes.tls=true
+    depends_on:
+      - web_recipes
+    networks:
+      - default
+      - proxy
+
+networks:
+  default:
+  proxy:
+    external: true
+
+volumes:
+  nginx_config:
+  staticfiles:
