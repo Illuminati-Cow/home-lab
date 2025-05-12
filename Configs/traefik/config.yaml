@@ -47,15 +47,6 @@ http:
         - https-redirectscheme
       tls: {}
       service: sabnzbd
-    openwrt:
-       entryPoints:
-         - "https"
-       rule: "Host(`openwrt.local.thepasture.uk`)"
-       middlewares:
-         - default-headers
-         - https-redirectscheme
-       tls: {}
-       service: openwrt
     syncthing:
       entryPoints:
         - "https"
@@ -90,7 +81,7 @@ http:
     qbittorrent:
       loadBalancer:
         servers:
-           - url: "http://10.0.0.104:8090"
+           - url: "http://10.0.0.107:8090"
         passHostHeader: true
     jellyfin:
       loadBalancer:
@@ -101,11 +92,6 @@ http:
       loadBalancer:
         servers:
           - url: "http://10.0.0.106:7777"
-        passHostHeader: true
-    openwrt:
-      loadBalancer:
-        servers:
-          - url: "http://10.0.0.222"
         passHostHeader: true
     syncthing:
       loadBalancer:
