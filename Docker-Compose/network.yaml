@@ -10,12 +10,10 @@ services:
     ports:
       - 80:80
       - 443:443
-      # - 443:443/tcp # Uncomment if you want HTTP3
-      # - 443:443/udp # Uncomment if you want HTTP3
     environment:
-      CF_DNS_API_TOKEN: ${CF_DNS_API_TOKEN} # if using .env
+      CF_DNS_API_TOKEN: ${CF_DNS_API_TOKEN}
       TRAEFIK_DASHBOARD_CREDENTIALS: ${TRAEFIK_DASHBOARD_CREDENTIALS}
-    env_file: .env # use .env
+    env_file: .env
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -38,22 +36,64 @@ services:
       - traefik.http.routers.traefik-secure.tls.domains[0].main=local.thepasture.uk
       - traefik.http.routers.traefik-secure.tls.domains[0].sans=*.local.thepasture.uk
       - traefik.http.routers.traefik-secure.service=api@internal
+  
   pocket-id:
     image: ghcr.io/pocket-id/pocket-id
+    container_name: pocket-id
     restart: unless-stopped
     env_file: .env
-    ports:
-      - 3000:80
+    # ports:
+    #   - 3000:80
     volumes:
       - /opt/stacks/network/pocketid/data:/app/backend/data
-    # Optional healthcheck
     healthcheck:
-      test: "curl -f http://localhost/healthz"
+      test: curl -f http://localhost/healthz
       interval: 1m30s
       timeout: 5s
       retries: 2
-      start_period: 10s  
-
+      start_period: 10s
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.pocket-id.rule=Host(`pocketid.local.thepasture.uk`)
+        || Host(`pocketid.thepasture.uk`)
+      - traefik.http.routers.pocket-id.entrypoints=https
+      - traefik.http.routers.pocket-id.tls=true
+      - traefik.http.services.pocket-id.loadbalancer.server.port=80
+    networks:
+      - proxy
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TRUST_PROXY=true
+      - PUBLIC_APP_URL=https://pocketid.thepasture.uk
+  
+  tinyauth:
+    image: ghcr.io/steveiliop56/tinyauth:v3
+    # ports:
+    #   - 3055:3000
+    container_name: tinyauth
+    restart: unless-stopped
+    networks:
+      - proxy
+    environment:
+      - SECRET=gTFaOBAGBVe5gp6hKxw6BFgJVjFXSeRy
+      - APP_URL=https://tinyauth.thepasture.uk
+      - USERS=cole:$$2a$$10$$5sq.p4ICVPYvNvW2mA8pruyBwWuU7IbCJcq176.McSWyjPkZI7g.G
+      - OAUTH_AUTO_REDIRECT=generic
+      - GENERIC_CLIENT_ID=304bfe15-d9b7-4979-a99d-31a595f1e96d
+      - GENERIC_CLIENT_SECRET=troThBBbJ3MqQ2uguI67f995yGzv1V9Z
+      - GENERIC_AUTH_URL=https://pocketid.thepasture.uk/authorize
+      - GENERIC_TOKEN_URL=https://pocketid.thepasture.uk/api/oidc/token
+      - GENERIC_USER_URL=https://pocketid.thepasture.uk/api/oidc/userinfo
+      - GENERIC_SCOPES=openid email profile groups
+      - GENERIC_NAME=Pocket ID
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.tinyauth.rule=Host(`tinyauth.local.thepasture.uk`) || Host(`tinyauth.thepasture.uk`)
+      - traefik.http.middlewares.tinyauth.forwardauth.address=http://tinyauth:3000/api/auth/traefik
+      - traefik.http.routers.tinyauth.entrypoints=https
+      - traefik.http.routers.tinyauth.tls=true
+      - traefik.http.services.tinyauth.loadbalancer.server.port=3000
 networks:
   proxy:
     external: true
