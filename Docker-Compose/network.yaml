@@ -59,6 +59,9 @@ services:
       - traefik.http.routers.pocket-id.entrypoints=https
       - traefik.http.routers.pocket-id.tls=true
       - traefik.http.services.pocket-id.loadbalancer.server.port=80
+      - trafeik.http.middlewares.local-to-global-redirect.redirectregex.regex=https?://([^\.]*\.)local.thepasture\.uk(.*)
+      - trafeik.http.middlewares.local-to-global-redirect.redirectregex.replacement=https://$${1}thepasture.uk$${2}
+      - traefik.http.routers.pocket-id.middlewares=local-to-global-redirect
     networks:
       - proxy
     environment:
