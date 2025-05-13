@@ -61,7 +61,7 @@ services:
       - traefik.http.services.pocket-id.loadbalancer.server.port=80
       - trafeik.http.middlewares.local-to-global-redirect.redirectregex.regex=https?://([^\.]*\.)local.thepasture\.uk(.*)
       - trafeik.http.middlewares.local-to-global-redirect.redirectregex.replacement=https://$${1}thepasture.uk$${2}
-      - traefik.http.routers.pocket-id.middlewares=local-to-global-redirect
+      # - traefik.http.routers.pocket-id.middlewares=local-to-global-redirect
     networks:
       - proxy
     environment:
@@ -78,13 +78,14 @@ services:
     restart: unless-stopped
     networks:
       - proxy
+    env_file: .env
     environment:
-      - SECRET=gTFaOBAGBVe5gp6hKxw6BFgJVjFXSeRy
+      - SECRET=${TINYAUTH_SECRET}
       - APP_URL=https://tinyauth.thepasture.uk
-      - USERS=cole:$$2a$$10$$5sq.p4ICVPYvNvW2mA8pruyBwWuU7IbCJcq176.McSWyjPkZI7g.G
+      - USERS=${TINYAUTH_USERS}
       - OAUTH_AUTO_REDIRECT=generic
       - GENERIC_CLIENT_ID=304bfe15-d9b7-4979-a99d-31a595f1e96d
-      - GENERIC_CLIENT_SECRET=troThBBbJ3MqQ2uguI67f995yGzv1V9Z
+      - GENERIC_CLIENT_SECRET=${TINYAUTH_POCKETID_CLIENT_SECRET}
       - GENERIC_AUTH_URL=https://pocketid.thepasture.uk/authorize
       - GENERIC_TOKEN_URL=https://pocketid.thepasture.uk/api/oidc/token
       - GENERIC_USER_URL=https://pocketid.thepasture.uk/api/oidc/userinfo
