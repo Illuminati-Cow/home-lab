@@ -27,6 +27,8 @@ services:
       - traefik.http.middlewares.traefik-auth.basicauth.users=${TRAEFIK_DASHBOARD_CREDENTIALS}
       - traefik.http.middlewares.traefik-https-redirect.redirectscheme.scheme=https
       - traefik.http.middlewares.sslheader.headers.customrequestheaders.X-Forwarded-Proto=https
+      - traefik.http.middlewares.local-to-global-redirect.redirectregex.regex=https?://([^\.]*\.)(?:local).thepasture\.uk(.*)
+      - traefik.http.middlewares.local-to-global-redirect.redirectregex.replacement=https://$${1}thepasture.uk$${2}
       - traefik.http.routers.traefik.middlewares=traefik-https-redirect
       - traefik.http.routers.traefik-secure.entrypoints=https
       - traefik.http.routers.traefik-secure.rule=Host(`traefik-dashboard.local.thepasture.uk`)
@@ -36,52 +38,59 @@ services:
       - traefik.http.routers.traefik-secure.tls.domains[0].main=local.thepasture.uk
       - traefik.http.routers.traefik-secure.tls.domains[0].sans=*.local.thepasture.uk
       - traefik.http.routers.traefik-secure.service=api@internal
-  
   pocket-id:
     image: ghcr.io/pocket-id/pocket-id
     container_name: pocket-id
     restart: unless-stopped
     env_file: .env
+<<<<<<< Updated upstream
     # ports:
-    #   - 3000:80
+    #   - 3000:1411
+=======
+>>>>>>> Stashed changes
     volumes:
       - /opt/stacks/network/pocketid/data:/app/backend/data
     healthcheck:
-      test: curl -f http://localhost/healthz
+      test: curl -f http://localhost:1411/healthz
       interval: 1m30s
       timeout: 5s
       retries: 2
       start_period: 10s
     labels:
       - traefik.enable=true
-      - traefik.http.routers.pocket-id.rule=Host(`pocketid.local.thepasture.uk`)
-        || Host(`pocketid.thepasture.uk`)
+      - traefik.http.routers.pocket-id.rule=Host(`pocketid.local.thepasture.uk`) || Host(`pocketid.thepasture.uk`)
       - traefik.http.routers.pocket-id.entrypoints=https
       - traefik.http.routers.pocket-id.tls=true
-      - traefik.http.services.pocket-id.loadbalancer.server.port=80
+      - traefik.http.services.pocket-id.loadbalancer.server.port=1411
+<<<<<<< Updated upstream
+=======
+      - traefik.http.routers.pocket-id.middlewares=local-to-global-redirect
+>>>>>>> Stashed changes
     networks:
       - proxy
     environment:
       - PUID=1000
       - PGID=1000
       - TRUST_PROXY=true
-      - PUBLIC_APP_URL=https://pocketid.thepasture.uk
+      - APP_URL=https://pocketid.thepasture.uk
+<<<<<<< Updated upstream
   
+=======
+>>>>>>> Stashed changes
   tinyauth:
     image: ghcr.io/steveiliop56/tinyauth:v3
-    # ports:
-    #   - 3055:3000
     container_name: tinyauth
     restart: unless-stopped
     networks:
       - proxy
+    env_file: .env
     environment:
-      - SECRET=gTFaOBAGBVe5gp6hKxw6BFgJVjFXSeRy
+      - SECRET=${TINYAUTH_SECRET}
       - APP_URL=https://tinyauth.thepasture.uk
-      - USERS=cole:$$2a$$10$$5sq.p4ICVPYvNvW2mA8pruyBwWuU7IbCJcq176.McSWyjPkZI7g.G
+      - USERS=${TINYAUTH_USERS}
       - OAUTH_AUTO_REDIRECT=generic
       - GENERIC_CLIENT_ID=304bfe15-d9b7-4979-a99d-31a595f1e96d
-      - GENERIC_CLIENT_SECRET=troThBBbJ3MqQ2uguI67f995yGzv1V9Z
+      - GENERIC_CLIENT_SECRET=${TINYAUTH_POCKETID_CLIENT_SECRET}
       - GENERIC_AUTH_URL=https://pocketid.thepasture.uk/authorize
       - GENERIC_TOKEN_URL=https://pocketid.thepasture.uk/api/oidc/token
       - GENERIC_USER_URL=https://pocketid.thepasture.uk/api/oidc/userinfo
