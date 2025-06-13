@@ -43,11 +43,8 @@ services:
     container_name: pocket-id
     restart: unless-stopped
     env_file: .env
-<<<<<<< Updated upstream
     # ports:
     #   - 3000:1411
-=======
->>>>>>> Stashed changes
     volumes:
       - /opt/stacks/network/pocketid/data:/app/backend/data
     healthcheck:
@@ -62,10 +59,7 @@ services:
       - traefik.http.routers.pocket-id.entrypoints=https
       - traefik.http.routers.pocket-id.tls=true
       - traefik.http.services.pocket-id.loadbalancer.server.port=1411
-<<<<<<< Updated upstream
-=======
       - traefik.http.routers.pocket-id.middlewares=local-to-global-redirect
->>>>>>> Stashed changes
     networks:
       - proxy
     environment:
@@ -73,10 +67,7 @@ services:
       - PGID=1000
       - TRUST_PROXY=true
       - APP_URL=https://pocketid.thepasture.uk
-<<<<<<< Updated upstream
   
-=======
->>>>>>> Stashed changes
   tinyauth:
     image: ghcr.io/steveiliop56/tinyauth:v3
     container_name: tinyauth
