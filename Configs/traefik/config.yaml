@@ -74,15 +74,27 @@ http:
         - https-redirectscheme
       tls: {}
       service: pelican-panel
-    pelican-wings:
-      entryPoints:
-        - "https"
-      rule: "Host(`pelican-wings.local.thepasture.uk`)"
-      middlewares:
-        - default-headers
-        - https-redirectscheme
-      tls: {}
-      service: pelican-wings
+    tcp:
+      routers:
+        pelican-wings:
+          entryPoints:
+            - tcp-8080
+            - tcp-8443
+            - tcp-2022
+          rule: "HostSNI(`pelican-wings.local.thepasture.uk`)"
+          service: pelican-wings-multiplex
+          tls:
+            passthrough: false
+      services:
+        pelican-wings-multiplex:
+          weighted:
+            services:
+              - name: pelican-wings-8080
+                weight: 1
+              - name: pelican-wings-8443
+                weight: 1
+              - name: pelican-wings-2022
+                weight: 1
 #endregion
 #region services
   services:
@@ -126,11 +138,18 @@ http:
         servers:
           - url: "http://10.0.0.104:80"
         passHostHeader: true
-    pelican-wings:
+    pelican-wings-8080:
       loadBalancer:
         servers:
-          - url: "http://10.0.0.111"
-        passHostHeader: true
+          - address: "10.0.0.111:8080"
+    pelican-wings-8443:
+      loadBalancer:
+        servers:
+          - address: "10.0.0.111:8443"
+    pelican-wings-2022:
+      loadBalancer:
+        servers:
+          - address: "10.0.0.111:2022"
 #endregion
   middlewares:
     https-redirectscheme:
