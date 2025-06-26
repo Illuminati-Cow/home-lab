@@ -1,0 +1,95 @@
+services:
+  audiobookshelf:
+    image: ghcr.io/advplyr/audiobookshelf:latest
+    # ports:
+    #   - 13378:80
+    container_name: audiobookshelf
+    networks:
+      - proxy
+    volumes:
+      - /tank/media/books:/books
+      - /tank/media/audiobooks:/audiobooks
+      - ./audiobookshelf/config:/config
+      - ./audiobookshelf/metadata:/metadata
+    environment:
+      - TZ=America/Los_Angeles
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.audiobooks.rule=Host(`audiobooks.local.thepasture.uk`) || Host(`audiobooks.thepasture.uk`)
+      - traefik.http.routers.audiobooks.entrypoints=https
+      - traefik.http.routers.audiobooks.tls=true
+      - traefik.http.services.audiobooks.loadbalancer.server.port=80
+  kavita:
+    image: lscr.io/linuxserver/kavita:latest
+    container_name: kavita
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Los_Angeles
+    volumes:
+      - ./kavita:/config
+      - /tank/media/books:/books
+      - /tank/media/comics:/comics
+    # ports:
+    #   - 5000:5000
+    restart: unless-stopped
+    networks:
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.books.rule=Host(`books.local.thepasture.uk`) || Host(`books.thepasture.uk`)
+      - traefik.http.routers.books.entrypoints=https
+      - traefik.http.routers.books.tls=true
+      - traefik.http.services.books.loadbalancer.server.port=5000
+  calibre-web-automated:
+    image: crocodilestick/calibre-web-automated:latest
+    container_name: calibre-web-automated
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Los_Angeles
+    volumes:
+      - ./cwa:/config
+      - /tank/media/downloads/books:/cwa-book-ingest
+      - /tank/media/books:/calibre-library
+    #ports:
+    # - 8083:8083 
+    restart: unless-stopped
+    networks:
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.calibre.rule=Host(`calibre.local.thepasture.uk`)
+      - traefik.http.routers.calibre.entrypoints=https
+      - traefik.http.routers.calibre.tls=true
+      - traefik.http.services.calibre.loadbalancer.server.port=8083
+  calibre-web-automated-book-downloader:
+    image: ghcr.io/calibrain/calibre-web-automated-book-downloader:latest
+    container_name: calibre-downloader
+    environment:
+      FLASK_PORT: 8084
+      LOG_LEVEL: info
+      BOOK_LANGUAGE: en
+      USE_BOOK_TITLE: true
+      TZ: America/Los_Angeles
+      APP_ENV: prod
+      UID: 1000
+      GID: 1000
+    # ports:
+    #   - 8084:8084
+    restart: unless-stopped
+    volumes:
+      # This is where the books will be downloaded to, usually it would be 
+      # the same as whatever you gave in "calibre-web-automated"
+      - /tank/media/downloads/books:/cwa-book-ingest
+    networks:
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.calibre-downloader.rule=Host(`calibre-downloader.local.thepasture.uk`)
+      - traefik.http.routers.calibre-downloader.entrypoints=https
+      - traefik.http.routers.calibre-downloader.tls=true
+      - traefik.http.services.calibre-downloader.loadbalancer.server.port=8084
+networks:
+  proxy:
+    external: true
