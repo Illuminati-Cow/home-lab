@@ -11,6 +11,12 @@ entryPoints:
           scheme: https
   https:
     address: ":443"
+  pelican-wings-main:
+    address: ":8080"
+  pelican-wings-secure:
+    address: ":8443"
+  pelican-wings-sftp:
+    address: ":2022"
 serversTransport:
   insecureSkipVerify: true
 providers:
