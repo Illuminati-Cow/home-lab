@@ -47,26 +47,57 @@
       register: ssh_key
       changed_when: false
 
-    - name: Check if the key is already present
-      ansible.builtin.command:
-        cmd: "pct exec {{ ctid }} -- grep -qF '{{ ssh_key.stdout }}' /root/.ssh/authorized_keys"
-      register: key_check
-      failed_when: key_check.rc not in [0,1]
-      changed_when: false
-      loop_control:
-        loop_var: ctid
-      loop: "{{ lxc_list }}"
+    - name: Ensure Ansible public key is present for root
+      block:
+        - name: Ensure /root/.ssh exists in each LXC (fail irrecoverably if not possible)
+          block:
+            - name: Check if /root/.ssh exists in LXC
+              ansible.builtin.command:
+                cmd: "pct exec {{ ctid }} -- test -d /root/.ssh"
+              register: ssh_dir_check
+              failed_when: false
+              changed_when: false
+              loop: "{{ lxc_list }}"
+              loop_control:
+                loop_var: ctid
 
-    - name: Append key to authorized_keys
-      ansible.builtin.command:
-        cmd: "pct exec {{ item.ctid }} -- sh -c 'echo ''{{ ssh_key.stdout }}'' >> /root/.ssh/authorized_keys'"
-      when: item.rc == 1
-      register: append_result
-      failed_when: append_result.rc != 0
-      loop_control:
-        label: "LXC {{ item.ctid }}"
-      loop: "{{ key_check.results }}"
-    
+            - name: Create /root/.ssh if missing in LXC
+              ansible.builtin.command:
+                cmd: "pct exec {{ ctid }} -- mkdir -m 700 -p /root/.ssh"
+              when: ssh_dir_check.results[loop.index0].rc != 0
+              register: mkdir_result
+              failed_when: mkdir_result is failed or (mkdir_result.rc is defined and mkdir_result.rc != 0)
+              changed_when: true
+              loop: "{{ lxc_list }}"
+              loop_control:
+                loop_var: ctid
+          rescue:
+            - name: Fail irrecoverably if /root/.ssh cannot be ensured
+              ansible.builtin.fail:
+                msg: "Failed to ensure /root/.ssh exists in LXC {{ ctid }}."
+              loop: "{{ lxc_list }}"
+              loop_control:
+                loop_var: ctid
+
+        - name: Check if the key is already present
+          ansible.builtin.command:
+            cmd: "pct exec {{ ctid }} -- grep -qF '{{ ssh_key.stdout }}' /root/.ssh/authorized_keys"
+          register: key_check
+          failed_when: key_check.rc not in [0,1]
+          changed_when: false
+          loop: "{{ lxc_list }}"
+          loop_control:
+            loop_var: ctid
+
+        - name: Append key to authorized_keys if not present
+          ansible.builtin.command:
+            cmd: "pct exec {{ ctid }} -- sh -c 'echo {{ ssh_key.stdout }} >> /root/.ssh/authorized_keys'"
+          when: key_check.results is defined and (key_check.results | selectattr('item', 'equalto', ctid) | map(attribute='rc') | first) == 1
+          loop: "{{ lxc_list }}"
+          loop_control:
+            loop_var: ctid
+      when: ssh_key is defined
+
     - name: Remove sudoer password requirements into temp file
       ansible.builtin.command:
         cmd: |
@@ -105,4 +136,4 @@
         extended: true
         loop_var: ctid
         index_var: index
-        label: "LXC {{ ctid }}" 
+        label: "LXC {{ ctid }}"
