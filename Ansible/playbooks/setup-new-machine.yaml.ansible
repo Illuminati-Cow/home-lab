@@ -64,7 +64,7 @@
             - name: Create /root/.ssh if missing in LXC
               ansible.builtin.command:
                 cmd: "pct exec {{ ctid }} -- mkdir -m 700 -p /root/.ssh"
-              when: ssh_dir_check.results[loop.index0].rc != 0
+              when: ssh_dir_check.results is defined and ssh_dir_check.results[ansible_loop.index0].rc != 0
               register: mkdir_result
               failed_when: mkdir_result is failed or (mkdir_result.rc is defined and mkdir_result.rc != 0)
               changed_when: true

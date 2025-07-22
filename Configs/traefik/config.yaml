@@ -161,7 +161,7 @@ http:
     nextcloud:
       loadBalancer:
         servers:
-          - url: "http://10.0.0.103:80"
+          - url: "https://10.0.0.103"
         passHostHeader: true
 #endregion
   middlewares:
