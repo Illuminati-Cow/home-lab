@@ -115,6 +115,15 @@ http:
         - https-redirectscheme
       tls: {}
       service: nextcloud
+    headphones:
+      entryPoints:
+        - "https"
+      rule: "Host(`headphones.local.thepasture.uk`)"
+      middlewares:
+        - default-headers
+        - https-redirectscheme
+      tls: {}
+      service: headphones
 #endregion
 #region services
   services:
@@ -162,6 +171,11 @@ http:
       loadBalancer:
         servers:
           - url: "https://10.0.0.103"
+        passHostHeader: true
+    headphones:
+      loadBalancer:
+        servers:
+          - url: "http://10.0.0.112:8181"
         passHostHeader: true
 #endregion
   middlewares:
