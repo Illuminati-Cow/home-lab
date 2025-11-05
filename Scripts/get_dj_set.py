@@ -6,6 +6,7 @@ import shutil
 import re
 from datetime import datetime
 import curses
+import curses.textpad
 import tempfile
 import glob
 import readline
@@ -127,19 +128,26 @@ if metadata['release_date'] == 'Unknown':
         metadata['release_date'] = date_match.group(1)
 
 # Interactive metadata editing using curses
-def edit_metadata(stdscr, metadata):
+def edit_metadata(stdscr: curses.window, metadata: dict) -> dict:
     curses.curs_set(0)
     stdscr.clear()
     stdscr.addstr(0, 0, "Edit Metadata (Use arrow keys to select, Enter to edit, Ctrl+C to confirm):")
-    
-    fields = list(metadata.keys())
+
+    fields: List[str] = list(metadata.keys())
+    fields.append('Done')
     current_idx = 0
     while True:
         for i, field in enumerate(fields):
             if i == current_idx:
-                stdscr.addstr(i + 2, 0, f"> {field}: {metadata[field]}", curses.A_REVERSE)
+                if field == 'Done':
+                    stdscr.addstr(i + 2, 0, f"> {field}", curses.A_REVERSE)
+                else:
+                    stdscr.addstr(i + 2, 0, f"> {field}: {metadata[field]}", curses.A_REVERSE)
             else:
-                stdscr.addstr(i + 2, 0, f"  {field}: {metadata[field]}")
+                if field == 'Done':
+                    stdscr.addstr(i + 2, 0, f"  {field}")
+                else:
+                    stdscr.addstr(i + 2, 0, f"  {field}: {metadata[field]}")
         
         stdscr.refresh()
         key = stdscr.getch()
@@ -149,14 +157,35 @@ def edit_metadata(stdscr, metadata):
         elif key == curses.KEY_DOWN and current_idx < len(fields) - 1:
             current_idx += 1
         elif key == 10:  # Enter
-            stdscr.addstr(len(fields) + 3, 0, f"Edit {fields[current_idx]}: ")
-            curses.echo()
-            new_value = stdscr.getstr(len(fields) + 3, len(f"Edit {fields[current_idx]}: "), 100).decode('utf-8')
-            curses.noecho()
+            if fields[current_idx] == 'Done':
+                fields.pop(current_idx)
+                break
+
+            curses.curs_set(1)
+            field_name = fields[current_idx]
+            current_value = metadata.get(field_name, '')
+            max_len = 60
+            cursors_y = current_idx + 2
+            cursors_x = len(field_name) + 4
+
+            # Create a single-line window at the cursor position and prefill it
+            win = curses.newwin(1, max_len, cursors_y, cursors_x)
+            win.addstr(0, 0, current_value)
+            win.move(0, len(current_value))
+            win.refresh()
+
+            # Make Enter (newline) finish editing by mapping newline to Ctrl-G (ASCII 7)
+            def _enter_terminator(ch):
+                if ch == 10:  # Enter
+                    return 7   # Ctrl-G ends Textbox.edit()
+                return ch
+
+            textbox = curses.textpad.Textbox(win)
+            new_value = textbox.edit(_enter_terminator).strip()
+
+            curses.curs_set(0)
             if new_value:
-                metadata[fields[current_idx]] = new_value
-        elif key == 3:  # Ctrl+C
-            break
+                metadata[field_name] = new_value
     
     return metadata
 
@@ -187,11 +216,13 @@ def estimate_size(bitrate, duration):
 
 # Add size estimates
 for fmt in audio_formats.values():
-    if fmt['name'] != 'None':
+    fmt.setdefault('size', 0)
+    if fmt.get('name') != 'None':
         fmt['size'] = estimate_size(fmt['bitrate'], duration)
 
 for fmt in video_formats.values():
-    if fmt['name'] != 'None':
+    fmt.setdefault('size', 0)
+    if fmt.get('name') != 'None':
         fmt['size'] = estimate_size(fmt['bitrate'], duration)
 
 # Interactive format selection using curses
@@ -230,32 +261,36 @@ while audio_format == 'none' and video_format == 'none':
 
 # Create temporary directory for downloads
 temp_dir = tempfile.mkdtemp()
+original_cwd = os.getcwd()
 os.chdir(temp_dir)
 
 # Download the video
+ytdlp_cmd = ['yt-dlp', '--format', 'best', '--output', 'temp_video.%(ext)s', url]
 print("Downloading video...")
 try:
-    subprocess.run(['yt-dlp', '--format', 'best', '--output', 'temp_video.%(ext)s', url], check=True)
+    subprocess.run(ytdlp_cmd, check=True)
 except subprocess.CalledProcessError as e:
     print(f"Error downloading video: {e.stderr}")
-    print("Press 'r' to retry or 'q' to quit.")
     while True:
-        choice = input().strip().lower()
+        choice = input("Press r to retry or q to quit: ").strip().lower()
         if choice == 'r':
             # Retry download
             try:
-                subprocess.run(['yt-dlp', '--format', 'best', '--output', 'temp_video.%(ext)s', url], check=True)
+                subprocess.run(ytdlp_cmd, check=True)
                 break
             except subprocess.CalledProcessError as e2:
                 print(f"Error downloading video: {e2.stderr}")
                 print("Press 'r' to retry or 'q' to quit.")
         elif choice == 'q':
+            os.chdir(original_cwd)
+            shutil.rmtree(temp_dir)
             sys.exit(1)
 
 # Find the downloaded video file
 video_files = glob.glob('temp_video.*')
 if not video_files:
     print("Error: Downloaded video file not found.")
+    shutil.rmtree(temp_dir)
     sys.exit(1)
 video_file = video_files[0]
 
@@ -270,6 +305,7 @@ if audio_format != 'none':
         subprocess.run(cmd, shell=True, check=True)
     except subprocess.CalledProcessError as e:
         print(f"Error extracting audio: {e}")
+        shutil.rmtree(temp_dir)
         sys.exit(1)
 
 # Process video if selected
@@ -284,6 +320,7 @@ if video_format != 'none':
             subprocess.run(cmd, shell=True, check=True)
         except subprocess.CalledProcessError as e:
             print(f"Error converting video: {e}")
+            shutil.rmtree(temp_dir)
             sys.exit(1)
     else:
         # If no command, just rename
@@ -332,6 +369,7 @@ jellyfin_path = input("Please enter the full path to your Jellyfin music library
 # Validate the path
 if not os.path.isdir(jellyfin_path):
     print("Error: The specified path is not a valid directory.")
+    shutil.rmtree(temp_dir)
     sys.exit(1)
 
 # Import files into Jellyfin library
