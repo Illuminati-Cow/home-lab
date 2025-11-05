@@ -54,22 +54,41 @@ except subprocess.CalledProcessError:
     print("Error: ffmpeg is not installed or not accessible. Please install ffmpeg.")
     sys.exit(1)
 
-# Check command line arguments
-if len(sys.argv) != 2:
-    print("Usage: python get_dj_set.py <youtube_url>")
-    sys.exit(1)
-
-url = sys.argv[1]
-
 # Get video information using yt-dlp
-print("Fetching video information...")
-try:
-    result = subprocess.run(['yt-dlp', '--dump-json', url], capture_output=True, check=True, text=True)
-    info = json.loads(result.stdout)
-except subprocess.CalledProcessError as e:
-    print(f"Error fetching video information: {e.stderr}")
-    sys.exit(1)
+def fetch_video_info(url, runner=subprocess.run):
+    """
+    Fetch video info using the provided runner (defaults to subprocess.run).
+    The runner may be replaced with a mock that returns either:
+      - an object with a 'stdout' attribute containing the JSON string,
+      - a dict already (useful for very simple mocks),
+      - or a JSON string.
+    """
+    print("Fetching video information...")
+    try:
+        result = runner(['yt-dlp', '--dump-json', url], capture_output=True, check=True, text=True)
+        # Support multiple runner return shapes for easy mocking
+        if isinstance(result, dict):
+            return result
+        if hasattr(result, 'stdout'):
+            return json.loads(result.stdout)
+        if isinstance(result, str):
+            return json.loads(result)
+        raise ValueError("Unexpected runner return type from fetch_video_info")
+    except subprocess.CalledProcessError as e:
+        print(f"Error fetching video information: {e.stderr}")
+        sys.exit(1)
 
+def mock_runner(cmd, capture_output=True, check=True, text=True):
+    class MockResult:
+        stdout = json.dumps({
+            "title": "GOTEC - PRADA2000 | HÖR - May 29 / 2024",
+            "description": "GOTEC - PRADA2000 live from our studio in Berlin.",
+            "duration": 3600
+        })
+    return MockResult()
+
+
+info = fetch_video_info(url)
 title = info.get('title', 'Unknown Title')
 description = info.get('description', 'No description')
 duration = info.get('duration', 0)
@@ -80,24 +99,25 @@ metadata = {'title': title, 'artist': 'Unknown DJ', 'release_date': 'Unknown'}
 
 # Regex patterns to try
 patterns = [
-    r'^(.+?) - (.+?) \((.+?)\) \[(.+?)\]$',  # DJ - Title (Genre) [Date]
-    r'^(.+?) - (.+?) \[(.+?)\]$',  # DJ - Title [Date]
-    r'^(.+?) - (.+?) \((.+?)\)$',  # DJ - Title (Genre)
-    r'^(.+?) - (.+)$',  # DJ - Title
+    r'^(.*?) - (.*?) \| HÖR (?:.*?)- (.+)$',  # HOR Berlin Format: Title - DJ | HÖR - Date
+    r'^(.*?) \| HÖR (?:.*?)- (.+)$',  # HOR Berlin Format: DJ | HÖR - Date
+    r'^(.*?) \| HÖR .+$'  # HOR Berlin Format: DJ | HÖR
+    r'^(.*?) \| .+$',  # Boiler Room Format: DJ | Boiler Room: Location
 ]
 
 for pattern in patterns:
     match = re.match(pattern, title)
     if match:
         groups = match.groups()
-        if len(groups) == 4:
-            metadata['artist'], metadata['title'], _, metadata['release_date'] = groups
-        elif len(groups) == 3:
-            metadata['artist'], metadata['title'], metadata['release_date'] = groups
-        elif len(groups) == 3:
-            metadata['artist'], metadata['title'], _ = groups
-        else:
-            metadata['artist'], metadata['title'] = groups
+        if len(groups) == 3:
+            metadata['title'] = groups[0].strip()
+            metadata['artist'] = groups[1].strip()
+            metadata['release_date'] = groups[2].strip()
+        elif len(groups) == 2:
+            metadata['artist'] = groups[0].strip()
+            metadata['release_date'] = groups[1].strip()
+        elif len(groups) == 1:
+            metadata['artist'] = groups[0].strip()
         break
 
 # Try to parse date from description if not found
