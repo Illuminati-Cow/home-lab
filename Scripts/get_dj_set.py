@@ -9,6 +9,36 @@ import curses
 import tempfile
 import glob
 import readline
+from typing import List
+
+
+# Check command line arguments
+if len(sys.argv) < 2:
+    print("Usage: python get_dj_set.py <youtube_url>")
+    sys.exit(1)
+
+url = None
+
+for arg in sys.argv[1:]:
+    if arg in ('--help', '-h'):
+        print("Usage: python get_dj_set.py [OPTIONS] URL")
+        print("Downloads a DJ set from the provided YouTube URL, allows metadata editing,")
+        print("and imports it into a specified Jellyfin music library.")
+        sys.exit(0)
+    if arg in ('--version', '-v'):
+        print("get_dj_set.py version 0.1")
+        sys.exit(0)
+    if arg in ('--library-path', '-l'):
+        print ("The --library-path option is not yet supported. Please provide the Jellyfin library path when prompted.")
+        sys.exit(1)
+    elif arg.startswith('-'):
+        print(f"Unknown option: {arg}")
+        sys.exit(1)
+    elif url is None:
+        url = arg
+    else:
+        print(f"Unexpected argument: {arg}")
+        sys.exit(1)
 
 # Check if yt-dlp is installed
 try:
