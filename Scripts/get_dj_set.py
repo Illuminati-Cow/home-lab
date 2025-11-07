@@ -11,20 +11,95 @@ import tempfile
 import glob
 import readline
 from typing import List
+import abc
 
 
-# Check command line arguments
+class VideoDownloader(abc.ABC):
+    @abc.abstractmethod
+    def download(self, url: str) -> str:
+        pass
+
+
+class RealVideoDownloader(VideoDownloader):
+    def download(self, url: str) -> str:
+        ytdlp_cmd = ['yt-dlp', '--format', 'best', '--output', 'temp_video.%(ext)s', url]
+        print("Downloading video...")
+        while True:
+            try:
+                subprocess.run(ytdlp_cmd, check=True)
+                break
+            except subprocess.CalledProcessError as e:
+                print(f"Error downloading video: {e.stderr}")
+                choice = input("Press r to retry or q to quit: ").strip().lower()
+                if choice == 'q':
+                    raise RuntimeError("Download failed")
+                elif choice != 'r':
+                    print("Invalid choice. Press 'r' to retry or 'q' to quit.")
+        video_files = glob.glob('temp_video.*')
+        if not video_files:
+            raise RuntimeError("Downloaded video file not found.")
+        return video_files[0]
+
+
+class MockVideoDownloader(VideoDownloader):
+    def __init__(self, source_dir: str):
+        self.source_dir = source_dir
+
+    def download(self, url: str) -> str:
+        source_file = os.path.join(self.source_dir, 'temp_video.mp4')
+        if not os.path.exists(source_file):
+            raise FileNotFoundError(f"Mock video file not found: {source_file}")
+        shutil.copy(source_file, 'temp_video.mp4')
+        return 'temp_video.mp4'
+
+
+class InfoFetcher(abc.ABC):
+    @abc.abstractmethod
+    def fetch_info(self, url: str) -> dict:
+        pass
+
+
+class RealInfoFetcher(InfoFetcher):
+    def fetch_info(self, url: str) -> dict:
+        print("Fetching video information...")
+        try:
+            result = subprocess.run(['yt-dlp', '--dump-json', url], capture_output=True, check=True, text=True)
+            return json.loads(result.stdout)
+        except subprocess.CalledProcessError as e:
+            print(f"Error fetching video information: {e.stderr}")
+            sys.exit(1)
+
+
+class MockInfoFetcher(InfoFetcher):
+    def fetch_info(self, url: str) -> dict:
+        return {
+            "title": "GOTEC - PRADA2000 | HÖR - May 29 / 2024",
+            "description": "GOTEC - PRADA2000 live from our studio in Berlin.",
+            "duration": 3600
+        }
+
+
 if len(sys.argv) < 2:
     print("Usage: python get_dj_set.py <youtube_url>")
     sys.exit(1)
 
 url = None
+mock = False
+jellyfin_path = None
+no_jellyfin = False
 
-for arg in sys.argv[1:]:
+args = sys.argv[1:]
+i = 0
+while i < len(args):
+    arg = args[i]
     if arg in ('--help', '-h'):
         print("Usage: python get_dj_set.py [OPTIONS] URL")
         print("Downloads a DJ set from the provided YouTube URL, allows metadata editing,")
         print("and imports it into a specified Jellyfin music library.")
+        print("Options:")
+        print("  --mock                    Use mock implementations for info fetching and video downloading for testing")
+        print("  --jellyfin-library PATH, -jf PATH   Specify the Jellyfin library path (skips prompt if valid)")
+        print("  --no-jellyfin, -no-jf             Skip Jellyfin library import")
         sys.exit(0)
     if arg in ('--version', '-v'):
         print("get_dj_set.py version 0.1")
@@ -32,6 +107,16 @@ for arg in sys.argv[1:]:
     if arg in ('--library-path', '-l'):
         print ("The --library-path option is not yet supported. Please provide the Jellyfin library path when prompted.")
         sys.exit(1)
+    if arg == '--mock':
+        mock = True
+    elif arg in ('--jellyfin-library', '-jf'):
+        i += 1
+        if i >= len(args):
+            print("Error: --jellyfin-library requires a path argument")
+            sys.exit(1)
+        jellyfin_path = args[i]
+    elif arg in ('--no-jellyfin', '-no-jf'):
+        no_jellyfin = True
     elif arg.startswith('-'):
         print(f"Unknown option: {arg}")
         sys.exit(1)
@@ -40,6 +125,7 @@ for arg in sys.argv[1:]:
     else:
         print(f"Unexpected argument: {arg}")
         sys.exit(1)
+    i += 1
 
 # Check if yt-dlp is installed
 try:
@@ -55,48 +141,42 @@ except subprocess.CalledProcessError:
     print("Error: ffmpeg is not installed or not accessible. Please install ffmpeg.")
     sys.exit(1)
 
-# Get video information using yt-dlp
-def fetch_video_info(url, runner=subprocess.run):
-    """
-    Fetch video info using the provided runner (defaults to subprocess.run).
-    The runner may be replaced with a mock that returns either:
-      - an object with a 'stdout' attribute containing the JSON string,
-      - a dict already (useful for very simple mocks),
-      - or a JSON string.
-    """
-    print("Fetching video information...")
-    try:
-        result = runner(['yt-dlp', '--dump-json', url], capture_output=True, check=True, text=True)
-        # Support multiple runner return shapes for easy mocking
-        if isinstance(result, dict):
-            return result
-        if hasattr(result, 'stdout'):
-            return json.loads(result.stdout)
-        if isinstance(result, str):
-            return json.loads(result)
-        raise ValueError("Unexpected runner return type from fetch_video_info")
-    except subprocess.CalledProcessError as e:
-        print(f"Error fetching video information: {e.stderr}")
-        sys.exit(1)
+if mock:
+    info_fetcher = MockInfoFetcher()
+else:
+    info_fetcher = RealInfoFetcher()
 
-def mock_runner(cmd, capture_output=True, check=True, text=True):
-    class MockResult:
-        stdout = json.dumps({
-            "title": "GOTEC - PRADA2000 | HÖR - May 29 / 2024",
-            "description": "GOTEC - PRADA2000 live from our studio in Berlin.",
-            "duration": 3600
-        })
-    return MockResult()
-
-
-info = fetch_video_info(url)
+info = info_fetcher.fetch_info(url)
 title = info.get('title', 'Unknown Title')
 description = info.get('description', 'No description')
 duration = info.get('duration', 0)
 
+def parse_date(date_str):
+    """Parse date from various formats and return datetime object or None."""
+    if not date_str:
+        return None
+    
+    # Try different formats
+    formats = [
+        '%Y-%m-%d',  # 2024-05-29
+        '%B %d / %Y',  # May 29 / 2024
+        '%b %d / %Y',  # May 29 / 2024 (abbreviated month)
+        '%m/%d/%Y',  # 05/29/2024
+        '%d/%m/%Y',  # 29/05/2024
+        '%Y/%m/%d',  # 2024/05/29
+        '%Y%m%d',  # 20240529 (yt-dlp upload_date)
+    ]
+    
+    for fmt in formats:
+        try:
+            return datetime.strptime(date_str.strip(), fmt)
+        except ValueError:
+            continue
+    return None
+
 # Parse metadata from title
 # Common DJ set title formats: "DJ Name - Set Title (Genre) [Date]" or variations
-metadata = {'title': title, 'artist': 'Unknown DJ', 'release_date': 'Unknown'}
+metadata = {'title': title, 'artist': 'Unknown DJ', 'release_date': None}
 
 # Regex patterns to try
 patterns = [
@@ -113,21 +193,57 @@ for pattern in patterns:
         if len(groups) == 3:
             metadata['title'] = groups[0].strip()
             metadata['artist'] = groups[1].strip()
-            metadata['release_date'] = groups[2].strip()
+            metadata['release_date'] = parse_date(groups[2].strip())
         elif len(groups) == 2:
             metadata['artist'] = groups[0].strip()
-            metadata['release_date'] = groups[1].strip()
+            metadata['release_date'] = parse_date(groups[1].strip())
         elif len(groups) == 1:
             metadata['artist'] = groups[0].strip()
         break
 
 # Try to parse date from description if not found
-if metadata['release_date'] == 'Unknown':
-    date_match = re.search(r'\b(\d{4}-\d{2}-\d{2})\b', description)
-    if date_match:
-        metadata['release_date'] = date_match.group(1)
+if metadata['release_date'] is None:
+    # Look for various date patterns in description
+    date_patterns = [
+        r'\b(\d{4}-\d{2}-\d{2})\b',  # 2024-05-29
+        r'\b([A-Za-z]+ \d{1,2} / \d{4})\b',  # May 29 / 2024
+        r'\b(\d{1,2}/\d{1,2}/\d{4})\b',  # 05/29/2024 or 29/05/2024
+        r'\b(\d{4}/\d{1,2}/\d{1,2})\b',  # 2024/05/29
+    ]
+    
+    for pattern in date_patterns:
+        match = re.search(pattern, description)
+        if match:
+            parsed_date = parse_date(match.group(1))
+            if parsed_date:
+                metadata['release_date'] = parsed_date
+                break
+    else:
+        upload_date = info.get('upload_date')
+        if upload_date:
+            metadata['release_date'] = parse_date(upload_date)
+
+# Handle Jellyfin library path
+if not no_jellyfin:
+    if jellyfin_path is None:
+        jellyfin_path = input("Please enter the full path to your Jellyfin music library: ")
+    # Validate the path
+    if not os.path.isdir(jellyfin_path):
+        print("Error: The specified path is not a valid directory.")
+        sys.exit(1)
 
 # Interactive metadata editing using curses
+def format_metadata_value(metadata, field):
+    value = metadata[field]
+    if field == 'release_date':
+        if isinstance(value, datetime):
+            return value.strftime('%Y-%m-%d')
+        elif value is None:
+            return 'Unknown'
+        else:
+            return str(value)
+    return str(value)
+
 def edit_metadata(stdscr: curses.window, metadata: dict) -> dict:
     curses.curs_set(0)
     stdscr.clear()
@@ -142,12 +258,12 @@ def edit_metadata(stdscr: curses.window, metadata: dict) -> dict:
                 if field == 'Done':
                     stdscr.addstr(i + 2, 0, f"> {field}", curses.A_REVERSE)
                 else:
-                    stdscr.addstr(i + 2, 0, f"> {field}: {metadata[field]}", curses.A_REVERSE)
+                    stdscr.addstr(i + 2, 0, f"> {field}: {format_metadata_value(metadata, field)}", curses.A_REVERSE)
             else:
                 if field == 'Done':
                     stdscr.addstr(i + 2, 0, f"  {field}")
                 else:
-                    stdscr.addstr(i + 2, 0, f"  {field}: {metadata[field]}")
+                    stdscr.addstr(i + 2, 0, f"  {field}: {format_metadata_value(metadata, field)}")
         
         stdscr.refresh()
         key = stdscr.getch()
@@ -163,7 +279,7 @@ def edit_metadata(stdscr: curses.window, metadata: dict) -> dict:
 
             curses.curs_set(1)
             field_name = fields[current_idx]
-            current_value = metadata.get(field_name, '')
+            current_value = format_metadata_value(metadata, field_name)
             max_len = 60
             cursors_y = current_idx + 2
             cursors_x = len(field_name) + 4
@@ -185,7 +301,14 @@ def edit_metadata(stdscr: curses.window, metadata: dict) -> dict:
 
             curses.curs_set(0)
             if new_value:
-                metadata[field_name] = new_value
+                if field_name == 'release_date':
+                    try:
+                        metadata[field_name] = datetime.fromisoformat(new_value)
+                    except ValueError:
+                        # If invalid, keep the old value or set to None
+                        pass  # keep old
+                else:
+                    metadata[field_name] = new_value
     
     return metadata
 
@@ -201,7 +324,7 @@ audio_formats = {
 }
 
 video_formats = {
-    'none': {'name': 'None', 'bitrate': 0, 'ext': None, 'command': ''},
+    'none': {'name': 'None', 'bitrate': 0, '': None, 'command': ''},
     'mp4_720p': {'name': 'MP4 720p', 'bitrate': 2000000, 'ext': 'mp4', 'command': '-vf scale=-2:720 -c:v libx264 -b:v 2M -c:a aac'},
     'mp4_1080p': {'name': 'MP4 1080p', 'bitrate': 5000000, 'ext': 'mp4', 'command': '-vf scale=-2:1080 -c:v libx264 -b:v 5M -c:a aac'},
     'mkv_1080p': {'name': 'MKV 1080p', 'bitrate': 5000000, 'ext': 'mkv', 'command': '-vf scale=-2:1080 -c:v libx264 -b:v 5M -c:a aac'},
@@ -264,42 +387,42 @@ temp_dir = tempfile.mkdtemp()
 original_cwd = os.getcwd()
 os.chdir(temp_dir)
 
-# Download the video
-ytdlp_cmd = ['yt-dlp', '--format', 'best', '--output', 'temp_video.%(ext)s', url]
-print("Downloading video...")
-try:
-    subprocess.run(ytdlp_cmd, check=True)
-except subprocess.CalledProcessError as e:
-    print(f"Error downloading video: {e.stderr}")
-    while True:
-        choice = input("Press r to retry or q to quit: ").strip().lower()
-        if choice == 'r':
-            # Retry download
-            try:
-                subprocess.run(ytdlp_cmd, check=True)
-                break
-            except subprocess.CalledProcessError as e2:
-                print(f"Error downloading video: {e2.stderr}")
-                print("Press 'r' to retry or 'q' to quit.")
-        elif choice == 'q':
-            os.chdir(original_cwd)
-            shutil.rmtree(temp_dir)
-            sys.exit(1)
+if mock:
+    downloader = MockVideoDownloader(original_cwd)
+else:
+    downloader = RealVideoDownloader()
 
-# Find the downloaded video file
-video_files = glob.glob('temp_video.*')
-if not video_files:
-    print("Error: Downloaded video file not found.")
+try:
+    video_file = downloader.download(url)
+except (RuntimeError, FileNotFoundError) as e:
+    print(e)
+    os.chdir(original_cwd)
     shutil.rmtree(temp_dir)
     sys.exit(1)
-video_file = video_files[0]
+
+def sanitize_filename(name):
+    # Remove invalid characters for filenames
+    return re.sub(r'[<>:"/\\|?*]', '', name).strip()
+
+def escape_metadata(value):
+    # Escape quotes for ffmpeg metadata
+    return value.replace('"', '\\"').replace("'", "\\'")
+
+def get_metadata_date(metadata):
+    if isinstance(metadata['release_date'], datetime):
+        return str(metadata['release_date'].year)
+    elif metadata['release_date'] is None:
+        return ''
+    else:
+        return str(metadata['release_date'])
 
 # Process audio if selected
 audio_file = None
 if audio_format != 'none':
     audio_ext = audio_formats[audio_format]['ext']
     audio_file = f"output_audio.{audio_ext}"
-    cmd = f'ffmpeg -i "{video_file}" -vn {audio_formats[audio_format]["command"]} "{audio_file}"'
+    metadata_flags = f'-metadata artist="{escape_metadata(metadata["artist"])}" -metadata title="{escape_metadata(metadata["title"])}" -metadata date="{escape_metadata(get_metadata_date(metadata))}"'
+    cmd = f'ffmpeg -i "{video_file}" -vn {metadata_flags} {audio_formats[audio_format]["command"]} "{audio_file}"'
     print(f"Extracting audio to {audio_file}...")
     try:
         subprocess.run(cmd, shell=True, check=True)
@@ -314,7 +437,8 @@ if video_format != 'none':
     video_ext = video_formats[video_format]['ext']
     final_video_file = f"output_video.{video_ext}"
     if video_formats[video_format]['command']:
-        cmd = f'ffmpeg -i "{video_file}" {video_formats[video_format]["command"]} "{final_video_file}"'
+        metadata_flags = f'-metadata artist="{escape_metadata(metadata["artist"])}" -metadata title="{escape_metadata(metadata["title"])}" -metadata date="{escape_metadata(get_metadata_date(metadata))}"'
+        cmd = f'ffmpeg -i "{video_file}" {metadata_flags} {video_formats[video_format]["command"]} "{final_video_file}"'
         print(f"Converting video to {final_video_file}...")
         try:
             subprocess.run(cmd, shell=True, check=True)
@@ -326,16 +450,33 @@ if video_format != 'none':
         # If no command, just rename
         os.rename(video_file, final_video_file)
 
-# Delete original video if no video format selected
-if video_format == 'none':
+if video_format == 'none' and not mock:
     os.remove(video_file)
+
+# Rename files using metadata
+if audio_file:
+    date_str = format_metadata_value(metadata, 'release_date')
+    if date_str != 'Unknown':
+        new_name = sanitize_filename(f"{metadata['artist']} - {metadata['title']} ({date_str}).{audio_formats[audio_format]['ext']}")
+    else:
+        new_name = sanitize_filename(f"{metadata['artist']} - {metadata['title']}.{audio_formats[audio_format]['ext']}")
+    os.rename(audio_file, new_name)
+    audio_file = new_name
+
+if final_video_file:
+    date_str = format_metadata_value(metadata, 'release_date')
+    if date_str != 'Unknown':
+        new_name = sanitize_filename(f"{metadata['artist']} - {metadata['title']} ({date_str}).{video_formats[video_format]['ext']}")
+    else:
+        new_name = sanitize_filename(f"{metadata['artist']} - {metadata['title']}.{video_formats[video_format]['ext']}")
+    os.rename(final_video_file, new_name)
+    final_video_file = new_name
 
 # Path completion setup
 matches = []
 def complete_path(text, state):
     global matches
     if state == 0:
-        # Get the directory and base name
         if text.endswith('/'):
             dir_path = text
             base = ''
@@ -343,11 +484,8 @@ def complete_path(text, state):
             dir_path = os.path.dirname(text) or '.'
             base = os.path.basename(text)
         try:
-            # List files in the directory
             files = os.listdir(dir_path)
-            # Filter files that start with base
             matches = [f for f in files if f.startswith(base)]
-            # Make full paths
             matches = [os.path.join(dir_path, f) for f in matches]
             # If directory, add / at end
             matches = [m + '/' if os.path.isdir(m) else m for m in matches]
@@ -363,33 +501,26 @@ readline.set_completer_delims(' \t\n')
 readline.parse_and_bind('tab: complete')
 readline.set_completer(complete_path)
 
-# Now, prompt for Jellyfin music library path
-jellyfin_path = input("Please enter the full path to your Jellyfin music library: ")
-
-# Validate the path
-if not os.path.isdir(jellyfin_path):
-    print("Error: The specified path is not a valid directory.")
-    shutil.rmtree(temp_dir)
-    sys.exit(1)
-
-# Import files into Jellyfin library
 files_to_copy = []
 if audio_file:
     files_to_copy.append(audio_file)
 if final_video_file:
     files_to_copy.append(final_video_file)
 
+destination_path = original_cwd
 for file in files_to_copy:
-    dst = os.path.join(jellyfin_path, os.path.basename(file))
+    dst = os.path.join(destination_path if no_jellyfin else jellyfin_path, os.path.basename(file)   )
+    print(f"Importing {file} to {dst}...")
     try:
-        os.link(file, dst)
-        print(f"Hard-linked {file} to {dst}")
+        shutil.move(file, dst)
+        print(f"Moved {file} to {dst}")
     except OSError as e:
-        print(f"Error hard-linking {file}: {e}")
+        print(f"Error moving {file}: {e}")
+if no_jellyfin:
+    print("Jellyfin import skipped as per user request, files are available in the current directory.")
+else:
+    print("Files imported successfully into Jellyfin library.")
 
-print("Files imported successfully into Jellyfin library.")
-
-# Prompt to delete originals
 delete_originals = input("Would you like to delete the original files? (y/n): ").strip().lower()
 if delete_originals == 'y':
     for file in files_to_copy:
