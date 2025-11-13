@@ -605,12 +605,12 @@ if audio_file:
 if final_video_file:
     files_to_copy.append(final_video_file)
 
-destination_path = os.path.join(original_cwd, sanitize_filename(metadata['artist']))
+destination_path = os.path.join(original_cwd if no_jellyfin else jellyfin_path, sanitize_filename(metadata['artist']))
 if not os.path.exists(destination_path):
     print(f"Creating directory {destination_path}...")
     os.makedirs(destination_path)
 for file in files_to_copy:
-    dst = os.path.join(destination_path if no_jellyfin else jellyfin_path, os.path.basename(file)) # type: ignore
+    dst = os.path.join(destination_path, os.path.basename(file)) # type: ignore
     print(f"Importing {file} to {dst}...")
     try:
         shutil.move(file, dst)
