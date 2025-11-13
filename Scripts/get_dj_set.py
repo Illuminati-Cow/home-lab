@@ -13,7 +13,6 @@ import readline
 from typing import List
 import abc
 
-
 class VideoDownloader(abc.ABC):
     @abc.abstractmethod
     def download(self, url: str, audio_format: str, video_format: str) -> str:
@@ -32,14 +31,15 @@ class RealVideoDownloader(VideoDownloader):
             bitrate = self.audio_formats[audio_format]['bitrate']
             if bitrate is not None:
                 quality = bitrate // 1000
-                cmd = ['yt-dlp', '-f', f'ba[abr>={quality}]', '--embed-thumbnail', '--output', f'temp_audio.%(ext)s', url]
+                cmd = ['yt-dlp', '-f', f'ba[abr>={quality}]', '--write-thumbnail', '--convert-thumbnails', 'jpg', '--output', f'temp_audio.%(ext)s', url]
             else:
-                cmd = ['yt-dlp', '-f', 'bestaudio', '-S', 'abr', '--embed-thumbnail', '--output', f'temp_audio.%(ext)s', url]
+                cmd = ['yt-dlp', '-f', 'bestaudio', '-S', 'abr', '--write-thumbnail', '--convert-thumbnails', 'jpg', '--output', f'temp_audio.%(ext)s', url]
             print("Downloading audio...")
             subprocess.run(cmd, check=True)
             video_files = glob.glob('temp_audio.*')
             if not video_files:
                 raise RuntimeError("Downloaded audio file not found.")
+            video_files.remove(next(f for f in video_files if f.endswith('.jpg')))
             video_file = video_files[0]
             if audio_format == 'wav':
                 wav_file = 'temp_audio.wav'
@@ -50,21 +50,23 @@ class RealVideoDownloader(VideoDownloader):
         elif video_format != 'none' and audio_format == 'none':
             ext = self.video_formats[video_format]['ext']
             height = self.video_formats[video_format]['height']
-            cmd = ['yt-dlp', '-f', f'bestvideo[height<={height}]+bestaudio/best[height<={height}]', '-S', 'height', '--recode', ext, '--embed-thumbnail', '--output', f'temp_video.%(ext)s', url]
+            cmd = ['yt-dlp', '-f', f'bestvideo[height<={height}]+bestaudio/best[height<={height}]', '-S', 'height', '--recode', ext, '--write-thumbnail', '--convert-thumbnails', 'jpg', '--output', f'temp_video.%(ext)s', url]
             print("Downloading video...")
             subprocess.run(cmd, check=True)
             video_files = glob.glob('temp_video.*')
             if not video_files:
                 raise RuntimeError("Downloaded video file not found.")
+            video_files.remove(next(f for f in video_files if f.endswith('.jpg')))
             video_file = video_files[0]
         else:
             # Both
-            cmd = ['yt-dlp', '--format', 'best', '-S', 'res', '--embed-thumbnail', '--output', 'temp_video.%(ext)s', url]
+            cmd = ['yt-dlp', '--format', 'best', '-S', 'res', '--write-thumbnail', '--convert-thumbnails', 'jpg', '--output', 'temp_video.%(ext)s', url]
             print("Downloading video...")
             subprocess.run(cmd, check=True)
             video_files = glob.glob('temp_video.*')
             if not video_files:
                 raise RuntimeError("Downloaded video file not found.")
+            video_files.remove(next(f for f in video_files if f.endswith('.jpg')))
             video_file = video_files[0]
         return video_file
 
@@ -426,6 +428,7 @@ else:
 
 try:
     video_file = downloader.download(url, audio_format, video_format)
+
 except (RuntimeError, FileNotFoundError) as e:
     print(e)
     os.chdir(original_cwd)
@@ -458,6 +461,31 @@ if audio_format != 'none':
     print(f"Extracting audio to {audio_file}...")
     try:
         subprocess.run(cmd, shell=True, check=True)
+        # Embed thumbnail using mutagen if available
+        thumb_file = os.path.splitext(video_file)[0] + '.jpg'
+        if os.path.exists(thumb_file):
+            try:
+                if audio_ext == 'mp3':
+                    from mutagen.mp3 import MP3
+                    from mutagen.id3 import APIC
+                    audio = MP3(audio_file)
+                    with open(thumb_file, 'rb') as f:
+                        audio.tags.add(APIC(mime='image/jpeg', type=3, desc='Cover', data=f.read()))
+                    audio.save()
+                elif audio_ext == 'flac':
+                    from mutagen.flac import FLAC, Picture
+                    audio = FLAC(audio_file)
+                    pic = Picture()
+                    pic.type = 3
+                    pic.desc = 'Cover'
+                    with open(thumb_file, 'rb') as f:
+                        pic.data = f.read()
+                    pic.mime = 'image/jpeg'
+                    audio.add_picture(pic)
+                    audio.save()
+                # For wav, no embedding
+            except Exception as e:
+                print(f"Warning: Could not embed thumbnail in audio: {e}")
     except subprocess.CalledProcessError as e:
         print(f"Error extracting audio: {e}")
         shutil.rmtree(temp_dir)
@@ -470,7 +498,12 @@ if video_format != 'none':
     final_video_file = f"output_video.{video_ext}"
     if video_formats[video_format]['command']:
         metadata_flags = f'-metadata artist="{escape_metadata(metadata["artist"])}" -metadata title="{escape_metadata(metadata["title"])}" -metadata date="{escape_metadata(get_metadata_date(metadata))}"'
-        cmd = f'ffmpeg -i "{video_file}" {metadata_flags} {video_formats[video_format]["command"]} "{final_video_file}"'
+        thumb_file = os.path.splitext(video_file)[0] + '.jpg'
+        if os.path.exists(thumb_file):
+            thumb_part = f'-i "{thumb_file}" -map 0 -map 1 -c copy -disposition:v:1 attached_pic '
+        else:
+            thumb_part = '-c copy '
+        cmd = f'ffmpeg -i "{video_file}" {thumb_part} {metadata_flags} {video_formats[video_format]["command"]} "{final_video_file}"'
         print(f"Converting video to {final_video_file}...")
         try:
             subprocess.run(cmd, shell=True, check=True)
@@ -539,7 +572,7 @@ if audio_file:
 if final_video_file:
     files_to_copy.append(final_video_file)
 
-destination_path = original_cwd
+destination_path = os.path.join(original_cwd, sanitize_filename(metadata['artist']))
 for file in files_to_copy:
     dst = os.path.join(destination_path if no_jellyfin else jellyfin_path, os.path.basename(file)) # type: ignore
     print(f"Importing {file} to {dst}...")
@@ -555,6 +588,7 @@ else:
 
 delete_originals = input("Would you like to delete the original files? (y/n): ").strip().lower()
 if delete_originals == 'y':
+    os.chdir(original_cwd)
     for file in files_to_copy:
         try:
             os.remove(file)
