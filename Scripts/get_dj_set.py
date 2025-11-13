@@ -586,14 +586,4 @@ if no_jellyfin:
 else:
     print("Files imported successfully into Jellyfin library.")
 
-delete_originals = input("Would you like to delete the original files? (y/n): ").strip().lower()
-if delete_originals == 'y':
-    os.chdir(original_cwd)
-    for file in files_to_copy:
-        try:
-            os.remove(file)
-            print(f"Deleted {file}")
-        except OSError as e:
-            print(f"Error deleting {file}: {e}")
-
 print("Program completed.")
