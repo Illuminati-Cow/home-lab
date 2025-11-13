@@ -12,6 +12,7 @@ import glob
 import readline
 from typing import List
 import abc
+import pprint
 
 class VideoDownloader(abc.ABC):
     @abc.abstractmethod
@@ -108,6 +109,24 @@ class MockInfoFetcher(InfoFetcher):
             "duration": 3600
         }
 
+# Define audio and video formats with commands and size estimation
+audio_formats = {
+    'none': {'name': 'None', 'bitrate': 0, 'ext': None, 'command': ''},
+    'mp3_128': {'name': 'MP3 128kbps', 'bitrate': 128000, 'ext': 'mp3', 'command': '-b:a 128k'},
+    'mp3_320': {'name': 'MP3 320kbps', 'bitrate': 320000, 'ext': 'mp3', 'command': '-b:a 320k'},
+    'flac': {'name': 'FLAC (Lossless)', 'bitrate': None, 'ext': 'flac', 'command': '-c:a flac'},
+    'wav': {'name': 'WAV (Lossless)', 'bitrate': None, 'ext': 'wav', 'command': '-c:a pcm_s16le'},
+}
+
+video_formats = {
+    'none': {'name': 'None', 'bitrate': 0, 'ext': None, 'height': None, 'command': ''},
+    'mp4_720p': {'name': 'MP4 720p', 'bitrate': 2000000, 'ext': 'mp4', 'height': 720, 'command': '-vf scale=-2:720 -c:v libx264 -b:v 2M -c:a aac'},
+    'mp4_1080p': {'name': 'MP4 1080p', 'bitrate': 5000000, 'ext': 'mp4', 'height': 1080, 'command': '-vf scale=-2:1080 -c:v libx264 -b:v 5M -c:a aac'},
+    'mkv_1080p': {'name': 'MKV 1080p', 'bitrate': 5000000, 'ext': 'mkv', 'height': 1080, 'command': '-vf scale=-2:1080 -c:v libx264 -b:v 5M -c:a aac'},
+}
+
+audio_valid = [k for k in audio_formats.keys()]
+video_valid = [k for k in video_formats.keys()]
 
 if len(sys.argv) < 2:
     print("Usage: python get_dj_set.py <youtube_url>")
@@ -117,6 +136,9 @@ url = None
 mock = False
 jellyfin_path = None
 no_jellyfin = False
+auto_metadata = False
+audio_format = 'none'
+video_format = 'none'
 
 args = sys.argv[1:]
 i = 0
@@ -127,9 +149,12 @@ while i < len(args):
         print("Downloads a DJ set from the provided YouTube URL, allows metadata editing,")
         print("and imports it into a specified Jellyfin music library.")
         print("Options:")
-        print("  --mock                    Use mock implementations for info fetching and video downloading for testing")
-        print("  --jellyfin-library PATH, -jf PATH   Specify the Jellyfin library path (skips prompt if valid)")
-        print("  --no-jellyfin, -no-jf             Skip Jellyfin library import")
+        print("  --mock                             Use mock implementations for info fetching and video downloading for testing")
+        print("  --jellyfin-library PATH, -jf PATH  Specify the Jellyfin library path (skips prompt if valid)")
+        print("  --no-jellyfin, -nojf               Skip Jellyfin library import")
+        print("  --auto-metadata, -am               Use extracted metadata without interactive editing")
+        print(f"  --audio-format, -af FORMAT         Specify audio format {audio_valid}")
+        print(f"  --video-format, -vf FORMAT         Specify video format {video_valid}")
         sys.exit(0)
     if arg in ('--version', '-v'):
         print("get_dj_set.py version 0.1")
@@ -145,8 +170,28 @@ while i < len(args):
             print("Error: --jellyfin-library requires a path argument")
             sys.exit(1)
         jellyfin_path = args[i]
-    elif arg in ('--no-jellyfin', '-no-jf'):
+    elif arg in ('--no-jellyfin', '-nojf'):
         no_jellyfin = True
+    elif arg in ('--auto-metadata', '-am'):
+        auto_metadata = True
+    elif arg in ('--audio-format', '-af'):
+        i += 1
+        if i >= len(args):
+            print("Error: --audio-format requires a format argument")
+            sys.exit(1)
+        audio_format = args[i]
+        if audio_format not in audio_valid:
+            print(f"Error: Invalid audio format '{audio_format}'. Valid options: {audio_valid}")
+            sys.exit(1)
+    elif arg in ('--video-format', '-vf'):
+        i += 1
+        if i >= len(args):
+            print("Error: --video-format requires a format argument")
+            sys.exit(1)
+        video_format = args[i]
+        if video_format not in video_valid:
+            print(f"Error: Invalid video format '{video_format}'. Valid options: {video_valid}")
+            sys.exit(1)
     elif arg.startswith('-'):
         print(f"Unknown option: {arg}")
         sys.exit(1)
@@ -346,23 +391,13 @@ def edit_metadata(stdscr: curses.window, metadata: dict) -> dict:
     
     return metadata
 
-metadata = curses.wrapper(edit_metadata, metadata)
+if not auto_metadata:
+    metadata = curses.wrapper(edit_metadata, metadata)
+else:
+    print("Using auto-extracted metadata:")
+    pprint.pprint(metadata)
 
-# Define audio and video formats with commands and size estimation
-audio_formats = {
-    'none': {'name': 'None', 'bitrate': 0, 'ext': None, 'command': ''},
-    'mp3_128': {'name': 'MP3 128kbps', 'bitrate': 128000, 'ext': 'mp3', 'command': '-b:a 128k'},
-    'mp3_320': {'name': 'MP3 320kbps', 'bitrate': 320000, 'ext': 'mp3', 'command': '-b:a 320k'},
-    'flac': {'name': 'FLAC (Lossless)', 'bitrate': None, 'ext': 'flac', 'command': '-c:a flac'},
-    'wav': {'name': 'WAV (Lossless)', 'bitrate': None, 'ext': 'wav', 'command': '-c:a pcm_s16le'},
-}
 
-video_formats = {
-    'none': {'name': 'None', 'bitrate': 0, 'ext': None, 'height': None, 'command': ''},
-    'mp4_720p': {'name': 'MP4 720p', 'bitrate': 2000000, 'ext': 'mp4', 'height': 720, 'command': '-vf scale=-2:720 -c:v libx264 -b:v 2M -c:a aac'},
-    'mp4_1080p': {'name': 'MP4 1080p', 'bitrate': 5000000, 'ext': 'mp4', 'height': 1080, 'command': '-vf scale=-2:1080 -c:v libx264 -b:v 5M -c:a aac'},
-    'mkv_1080p': {'name': 'MKV 1080p', 'bitrate': 5000000, 'ext': 'mkv', 'height': 1080, 'command': '-vf scale=-2:1080 -c:v libx264 -b:v 5M -c:a aac'},
-}
 
 # Function to estimate file size
 def estimate_size(bitrate, duration):
@@ -409,8 +444,6 @@ def select_format(stdscr, formats, title_text):
         elif key == 10:  # Enter
             return options[current_idx]
 
-audio_format = 'none'
-video_format = 'none'
 while audio_format == 'none' and video_format == 'none':
     audio_format = curses.wrapper(select_format, audio_formats, "Select Audio Format (Use arrow keys, Enter to select):")
     video_format = curses.wrapper(select_format, video_formats, "Select Video Format (Use arrow keys, Enter to select):")
@@ -573,6 +606,9 @@ if final_video_file:
     files_to_copy.append(final_video_file)
 
 destination_path = os.path.join(original_cwd, sanitize_filename(metadata['artist']))
+if not os.path.exists(destination_path):
+    print(f"Creating directory {destination_path}...")
+    os.makedirs(destination_path)
 for file in files_to_copy:
     dst = os.path.join(destination_path if no_jellyfin else jellyfin_path, os.path.basename(file)) # type: ignore
     print(f"Importing {file} to {dst}...")
