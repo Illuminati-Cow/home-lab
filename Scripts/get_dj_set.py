@@ -16,36 +16,64 @@ import abc
 
 class VideoDownloader(abc.ABC):
     @abc.abstractmethod
-    def download(self, url: str) -> str:
+    def download(self, url: str, audio_format: str, video_format: str) -> str:
         pass
 
 
 class RealVideoDownloader(VideoDownloader):
-    def download(self, url: str) -> str:
-        ytdlp_cmd = ['yt-dlp', '--format', 'best', '--output', 'temp_video.%(ext)s', url]
-        print("Downloading video...")
-        while True:
-            try:
-                subprocess.run(ytdlp_cmd, check=True)
-                break
-            except subprocess.CalledProcessError as e:
-                print(f"Error downloading video: {e.stderr}")
-                choice = input("Press r to retry or q to quit: ").strip().lower()
-                if choice == 'q':
-                    raise RuntimeError("Download failed")
-                elif choice != 'r':
-                    print("Invalid choice. Press 'r' to retry or 'q' to quit.")
-        video_files = glob.glob('temp_video.*')
-        if not video_files:
-            raise RuntimeError("Downloaded video file not found.")
-        return video_files[0]
+    def __init__(self, audio_formats, video_formats):
+        self.audio_formats = audio_formats
+        self.video_formats = video_formats
+
+    def download(self, url: str, audio_format: str, video_format: str) -> str:
+        if audio_format != 'none' and video_format == 'none':
+            # Audio only
+            ext = self.audio_formats[audio_format]['ext']
+            bitrate = self.audio_formats[audio_format]['bitrate']
+            if bitrate is not None:
+                quality = bitrate // 1000
+                cmd = ['yt-dlp', '-f', f'ba[abr>={quality}]', '--embed-thumbnail', '--output', f'temp_audio.%(ext)s', url]
+            else:
+                cmd = ['yt-dlp', '-f', 'bestaudio', '-S', 'abr', '--embed-thumbnail', '--output', f'temp_audio.%(ext)s', url]
+            print("Downloading audio...")
+            subprocess.run(cmd, check=True)
+            video_files = glob.glob('temp_audio.*')
+            if not video_files:
+                raise RuntimeError("Downloaded audio file not found.")
+            video_file = video_files[0]
+            if audio_format == 'wav':
+                wav_file = 'temp_audio.wav'
+                cmd = f'ffmpeg -i "{video_file}" -c:a pcm_s16le "{wav_file}"'
+                subprocess.run(cmd, shell=True, check=True)
+                os.remove(video_file)
+                video_file = wav_file
+        elif video_format != 'none' and audio_format == 'none':
+            ext = self.video_formats[video_format]['ext']
+            height = self.video_formats[video_format]['height']
+            cmd = ['yt-dlp', '-f', f'bestvideo[height<={height}]+bestaudio/best[height<={height}]', '-S', 'height', '--recode', ext, '--embed-thumbnail', '--output', f'temp_video.%(ext)s', url]
+            print("Downloading video...")
+            subprocess.run(cmd, check=True)
+            video_files = glob.glob('temp_video.*')
+            if not video_files:
+                raise RuntimeError("Downloaded video file not found.")
+            video_file = video_files[0]
+        else:
+            # Both
+            cmd = ['yt-dlp', '--format', 'best', '-S', 'res', '--embed-thumbnail', '--output', 'temp_video.%(ext)s', url]
+            print("Downloading video...")
+            subprocess.run(cmd, check=True)
+            video_files = glob.glob('temp_video.*')
+            if not video_files:
+                raise RuntimeError("Downloaded video file not found.")
+            video_file = video_files[0]
+        return video_file
 
 
 class MockVideoDownloader(VideoDownloader):
     def __init__(self, source_dir: str):
         self.source_dir = source_dir
 
-    def download(self, url: str) -> str:
+    def download(self, url: str, audio_format: str, video_format: str) -> str:
         source_file = os.path.join(self.source_dir, 'temp_video.mp4')
         if not os.path.exists(source_file):
             raise FileNotFoundError(f"Mock video file not found: {source_file}")
@@ -145,6 +173,10 @@ if mock:
     info_fetcher = MockInfoFetcher()
 else:
     info_fetcher = RealInfoFetcher()
+
+if url is None and not mock:
+    print("Error: No URL provided.")
+    sys.exit(1)
 
 info = info_fetcher.fetch_info(url)
 title = info.get('title', 'Unknown Title')
@@ -324,10 +356,10 @@ audio_formats = {
 }
 
 video_formats = {
-    'none': {'name': 'None', 'bitrate': 0, '': None, 'command': ''},
-    'mp4_720p': {'name': 'MP4 720p', 'bitrate': 2000000, 'ext': 'mp4', 'command': '-vf scale=-2:720 -c:v libx264 -b:v 2M -c:a aac'},
-    'mp4_1080p': {'name': 'MP4 1080p', 'bitrate': 5000000, 'ext': 'mp4', 'command': '-vf scale=-2:1080 -c:v libx264 -b:v 5M -c:a aac'},
-    'mkv_1080p': {'name': 'MKV 1080p', 'bitrate': 5000000, 'ext': 'mkv', 'command': '-vf scale=-2:1080 -c:v libx264 -b:v 5M -c:a aac'},
+    'none': {'name': 'None', 'bitrate': 0, 'ext': None, 'height': None, 'command': ''},
+    'mp4_720p': {'name': 'MP4 720p', 'bitrate': 2000000, 'ext': 'mp4', 'height': 720, 'command': '-vf scale=-2:720 -c:v libx264 -b:v 2M -c:a aac'},
+    'mp4_1080p': {'name': 'MP4 1080p', 'bitrate': 5000000, 'ext': 'mp4', 'height': 1080, 'command': '-vf scale=-2:1080 -c:v libx264 -b:v 5M -c:a aac'},
+    'mkv_1080p': {'name': 'MKV 1080p', 'bitrate': 5000000, 'ext': 'mkv', 'height': 1080, 'command': '-vf scale=-2:1080 -c:v libx264 -b:v 5M -c:a aac'},
 }
 
 # Function to estimate file size
@@ -390,10 +422,10 @@ os.chdir(temp_dir)
 if mock:
     downloader = MockVideoDownloader(original_cwd)
 else:
-    downloader = RealVideoDownloader()
+    downloader = RealVideoDownloader(audio_formats, video_formats)
 
 try:
-    video_file = downloader.download(url)
+    video_file = downloader.download(url, audio_format, video_format)
 except (RuntimeError, FileNotFoundError) as e:
     print(e)
     os.chdir(original_cwd)
@@ -509,7 +541,7 @@ if final_video_file:
 
 destination_path = original_cwd
 for file in files_to_copy:
-    dst = os.path.join(destination_path if no_jellyfin else jellyfin_path, os.path.basename(file)   )
+    dst = os.path.join(destination_path if no_jellyfin else jellyfin_path, os.path.basename(file)) # type: ignore
     print(f"Importing {file} to {dst}...")
     try:
         shutil.move(file, dst)
