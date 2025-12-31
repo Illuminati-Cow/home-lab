@@ -124,6 +124,15 @@ http:
         - https-redirectscheme
       tls: {}
       service: headphones
+    opnsense:
+      entryPoints:
+        - "https"
+      rule: "Host(`opnsense.local.thepasture.uk`)"
+      middlewares:
+        - default-headers
+        - https-redirectscheme
+      tls: {}
+      service: opnsense
 #endregion
 #region services
   services:
@@ -176,6 +185,11 @@ http:
       loadBalancer:
         servers:
           - url: "http://10.0.0.112:8181"
+        passHostHeader: true
+    opnsense:
+      loadBalancer:
+        servers:
+          - url: "https://10.0.0.113"
         passHostHeader: true
 #endregion
   middlewares:
