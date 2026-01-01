@@ -12,11 +12,19 @@ entryPoints:
   https:
     address: ":443"
   pelican-wings-main:
-    address: ":8080"
+    address: ":8080/tcp"
   pelican-wings-secure:
-    address: ":8443"
+    address: ":8443/tcp"
   pelican-wings-sftp:
-    address: ":2022"
+    address: ":2022/tcp"
+  minecraft-tcp:
+    address: ":25565/tcp"
+  minecraft-udp:
+    address: ":25565/udp"
+  generic-tcp-games:
+    address: "30000-30100/tcp"
+  generic-udp-games:
+    address: "30000-30100/udp"
 serversTransport:
   insecureSkipVerify: true
 providers:

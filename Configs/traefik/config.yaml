@@ -1,13 +1,25 @@
 tcp:
   routers:
-    pelican-wings:
+    pelican-wings-main:
       entryPoints:
         - pelican-wings-main
+      service: pelican-wings-main
+    pelican-wings-secure:
+      entryPoints:
         - pelican-wings-secure
+      service: pelican-wings-secure
+    pelican-wings-sftp:
+      entryPoints:
         - pelican-wings-sftp
-      rule: "HostSNI(`pelican-wings.local.thepasture.uk`)"
-      service: pelican-wings-multiplex
-      tls: {}
+      service: pelican-wings-sftp
+    minecraft-tcp:
+      entryPoints:
+        - minecraft-tcp
+      service: minecraft-tcp
+    generic-tcp-games:
+      entryPoints:
+        - generic-tcp-games
+      service: generic-tcp-games
   services:
     pelican-wings-main:
       loadBalancer:
@@ -21,15 +33,34 @@ tcp:
       loadBalancer:
         servers:
           - address: "10.0.0.111:2022"
-    pelican-wings-multiplex:
-      weighted:
-        services:
-          - name: pelican-wings-main
-            weight: 1
-          - name: pelican-wings-secure
-            weight: 1
-          - name: pelican-wings-sftp
-            weight: 1
+    minecraft-tcp:
+      loadBalancer:
+        servers:
+          - address: "10.0.0.111:25565"
+    generic-tcp-games:
+      loadBalancer:
+        servers:
+          - address: "10.0.0.111:30000"
+
+udp:
+  routers:
+    minecraft-udp:
+      entryPoints:
+        - minecraft-udp
+      service: minecraft-udp
+    generic-udp-games:
+      entryPoints:
+        - generic-udp-games
+      service: generic-udp-games
+  services:
+    minecraft-udp:
+      loadBalancer:
+        servers:
+          - address: "10.0.0.111:25565"  # Same as TCP, assuming game uses same port
+    generic-udp-games:
+      loadBalancer:
+        servers:
+          - address: "10.0.0.111:30000"
 http:
  #region routers
   routers:
