@@ -1,16 +1,4 @@
 services:
-  recyclarr:
-    image: ghcr.io/recyclarr/recyclarr:latest
-    container_name: recyclarr
-    user: 1000:1000
-    networks:
-      - proxy
-    volumes:
-      - /opt/stacks/arr/recyclarr/config:/config
-    environment:
-      - TZ=America/Los_Angeles
-      - RECYCLARR_CREATE_CONFIG=true
-    restart: unless-stopped
   radarr:
     image: lscr.io/linuxserver/radarr:latest
     container_name: radarr
@@ -112,55 +100,10 @@ services:
     restart: unless-stopped
     labels:
       - traefik.enable=true
-      - traefik.http.routers.prowlarr.rule=Host(`prowlarr.local.thepasture.uk`)
+      - traefik.http.routers.prowlarr.rule=Host(`prowlarr.local.thepasture.uk`) || Host(`prowlarr.thepasture.uk`)
       - traefik.http.routers.prowlarr.entrypoints=https
       - traefik.http.routers.prowlarr.tls=true
       - traefik.http.services.prowlarr.loadbalancer.server.port=9696
-  # readarr:
-  #   image: lscr.io/linuxserver/readarr:develop
-  #   container_name: readarr
-  #   networks:
-  #     - proxy
-  #   environment:
-  #     - PUID=1000
-  #     - PGID=1000
-  #     - TZ=America/Los_Angeles
-  #   volumes:
-  #     - /opt/stacks/arr/readarr/config:/config
-  #     - /tank/media/books:/tank/media/books
-  #     - /tank/media/audiobooks:/tank/media/audiobooks
-  #     - /tank/media/downloads:/tank/media/downloads
-  #   ports:
-  #     - 8787:8787
-  #   restart: unless-stopped
-  #   labels:
-  #     - traefik.enable=true
-  #     - traefik.http.routers.readarr.rule=Host(`readarr.local.thepasture.uk`) || Host(`readarr.thepasture.uk`)
-  #     - traefik.http.routers.readarr.entrypoints=https
-  #     - traefik.http.routers.readarr.tls=true
-  #     - traefik.http.services.readarr.loadbalancer.server.port=8787
-  # lidarr:
-  #   image: lscr.io/linuxserver/lidarr:latest
-  #   container_name: lidarr
-  #   networks:
-  #     - proxy
-  #   environment:
-  #     - PUID=1000
-  #     - PGID=1000
-  #     - TZ=America/Los_Angeles
-  #   volumes:
-  #     - /opt/stacks/arr/lidarr/config:/config
-  #     - /tank/media/music:/tank/media/music #optional
-  #     - /tank/media/downloads:/tank/media/downloads #optional
-  #   ports:
-  #     - 8686:8686
-  #   restart: unless-stopped
-  #   labels:
-  #     - traefik.enable=true
-  #     - traefik.http.routers.lidarr.rule=Host(`lidarr.local.thepasture.uk`) || Host(`lidarr.thepasture.uk`)
-  #     - traefik.http.routers.lidarr.entrypoints=https
-  #     - traefik.http.routers.lidarr.tls=true
-  #     - traefik.http.services.lidarr.loadbalancer.server.port=8686
   bazarr:
     image: lscr.io/linuxserver/bazarr:latest
     container_name: bazarr
@@ -172,10 +115,8 @@ services:
       - TZ=America/Los_Angeles
     volumes:
       - /opt/stacks/arr/bazarr/config:/config
-      - /tank/media/movies:/tank/media/movies #optional
-      - /tank/media/shows:/tank/media/shows #optional
-    ports:
-      - 6767:6767
+      - /tank/media/movies:/tank/media/movies
+      - /tank/media/shows:/tank/media/shows
     restart: unless-stopped
     labels:
       - traefik.enable=true
@@ -183,22 +124,65 @@ services:
       - traefik.http.routers.bazarr.entrypoints=https
       - traefik.http.routers.bazarr.tls=true
       - traefik.http.services.bazarr.loadbalancer.server.port=6767
-  metube:
-    image: ghcr.io/alexta69/metube
-    container_name: metube
-    restart: unless-stopped
-    # ports:
-      # - "8081:8081"
-    volumes:
-      - /tank/media/downloads/youtube:/downloads
+  bazarra:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: bazarra
     networks:
       - proxy
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Los_Angeles
+    volumes:
+      - /opt/stacks/arr/bazarra/config:/config
+      - /tank/media/anime:/tank/media/anime
+    restart: unless-stopped
     labels:
       - traefik.enable=true
-      - traefik.http.routers.metube.rule=Host(`metube.local.thepasture.uk`)
-      - traefik.http.routers.metube.entrypoints=https
-      - traefik.http.routers.metube.tls=true
-      - traefik.http.services.metube.loadbalancer.server.port=8081
+      - traefik.http.routers.bazarra.rule=Host(`bazarra.local.thepasture.uk`)
+      - traefik.http.routers.bazarra.entrypoints=https
+      - traefik.http.routers.bazarra.tls=true
+      - traefik.http.services.bazarra.loadbalancer.server.port=6767
+  soulsync:
+    image: boulderbadgedad/soulsync:latest
+    container_name: soulsync-webui
+    environment:
+      # User/Group ID configuration
+      - PUID=1000
+      - PGID=1000
+      - UMASK=022
+      # Web server configuration
+      - FLASK_ENV=production
+      - PYTHONPATH=/app
+      # Optional: Configure through environment variables
+      - SOULSYNC_CONFIG_PATH=/app/config/config.json
+      # Set timezone (change to your timezone)
+      - TZ=America/Los_Angeles
+    ports:
+      # - "8008:8008" # Main web app
+      - "8888:8888" # Spotify OAuth callback
+      - "8889:8889" # Tidal OAuth callback
+    volumes:
+      - ./soulsync/config:/app/config
+      - ./soulsync/logs:/app/logs
+      - /tank/media/downloads/music:/app/downloads
+      - /tank/media/downloads/staging:/app/Staging
+      - ./soulsync/database:/app/data
+      - /tank/media/music:/music:ro
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8008/" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.soulsync.rule=Host(`soulsync.local.thepasture.uk`)
+      - traefik.http.routers.soulsync.entrypoints=https
+      - traefik.http.routers.soulsync.tls=true
+      - traefik.http.services.soulsync.loadbalancer.server.port=8008
+
 networks:
   proxy:
     external: true
