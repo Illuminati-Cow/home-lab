@@ -65,9 +65,11 @@ services:
       - traefik.http.routers.sonarra.entrypoints=https
       - traefik.http.routers.sonarra.tls=true
       - traefik.http.services.sonarra.loadbalancer.server.port=8999
-  jellyseerr:
-    image: fallenbagel/jellyseerr:latest
-    container_name: jellyseerr
+  seerr:
+    image: ghcr.io/seerr-team/seerr:latest
+    container_name: seerr
+    init: true
+    user: "1000:1000"
     networks:
       - proxy
     environment:
@@ -77,13 +79,19 @@ services:
       - 5055:5055
     volumes:
       - /opt/stacks/arr/jellyseerr/app/config:/app/config
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:5055/api/v1/settings/public || exit 1
+      start_period: 20s
+      timeout: 3s
+      interval: 15s
+      retries: 3
     restart: unless-stopped
     labels:
       - traefik.enable=true
-      - traefik.http.routers.jellyseerr.rule=Host(`jellyseerr.local.thepasture.uk`) || Host(`jellyseerr.thepasture.uk`)
-      - traefik.http.routers.jellyseerr.entrypoints=https
-      - traefik.http.routers.jellyseerr.tls=true
-      - traefik.http.services.jellyseerr.loadbalancer.server.port=5055
+      - traefik.http.routers.seerr.rule=Host(`seerr.local.thepasture.uk`) || Host(`seerr.thepasture.uk`) || Host(`jellyseerr.local.thepasture.uk`) || Host(`jellyseerr.thepasture.uk`)
+      - traefik.http.routers.seerr.entrypoints=https
+      - traefik.http.routers.seerr.tls=true
+      - traefik.http.services.seerr.loadbalancer.server.port=5055
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
     container_name: prowlarr
@@ -146,6 +154,8 @@ services:
   soulsync:
     image: boulderbadgedad/soulsync:latest
     container_name: soulsync-webui
+    networks:
+      - proxy
     environment:
       # User/Group ID configuration
       - PUID=1000
@@ -182,7 +192,6 @@ services:
       - traefik.http.routers.soulsync.entrypoints=https
       - traefik.http.routers.soulsync.tls=true
       - traefik.http.services.soulsync.loadbalancer.server.port=8008
-
 networks:
   proxy:
     external: true
